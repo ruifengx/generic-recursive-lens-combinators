@@ -52,7 +52,7 @@ instance
             ++ show l ++ " " ++ show r ++ ")"
 
 Tree : Set → ℕ → Set
-Tree a n = μ (TreeF a) n
+Tree a n = μ (λ _ → TreeF a) n
 
 leaf′ : ∀ {a : Set} {n : ℕ} → Tree a (suc n)
 leaf′ = fix leaf
@@ -65,20 +65,24 @@ branch′ : ∀ {a : Set} {n : ℕ}
   → Tree a (suc n)
 branch′ x l r = fix (branch x l r)
 
-t : μ (TreeF ℕ) 4
+t : Tree ℕ 4
 t = branch′ 3 (branch′ 1 leaf′ (branch′ 4 leaf′ leaf′)) leaf′
 
 map2 : ∀ {a b : Set} → (a → b) → (a → b) → List a → List b
 map2 f-init f [] = []
 map2 f-init f (x ∷ xs) = f-init x ∷ List.map f xs
 
-psLTree : ∀ {a b : Set} {n : ℕ}
-  → {{Showable a}}
+TreeF′ : Set → ℕ → Set → Set
+TreeF′ a _ = TreeF a
+
+psLTree : ∀ {a : ℕ → Set} {b : Set} {n : ℕ}
+  → {{∀ {m : ℕ} → Showable (a m)}}
   → {{Showable b}}
-  → μ (L a (TreeF b)) {{L-Functor}} n
+  → μ (L′ a (TreeF′ b)) n {{λ {m : ℕ} → L′-Functor {a} {m} {TreeF′ b}}}
   → String
-psLTree {a} {b} {{a-Showable}} {{b-Showable}} = fold-no-idx {{L-Functor}} f
-  where f : a × TreeF b String → String
+psLTree {a} {b} {n} {{a-Showable}} {{b-Showable}}
+  = fold {{λ {m} → L′-Functor {a} {m} {TreeF′ b}}} f
+  where f : ∀ {n : ℕ} → a n × TreeF b String → String
         f (x , leaf) = "leaf: @tag: " ++ show x
         f (x , branch y l r) =
           let sx = "+-" ++ "@tag: " ++ show x
@@ -89,7 +93,7 @@ psLTree {a} {b} {{a-Showable}} {{b-Showable}} = fold-no-idx {{L-Functor}} f
 
 psTree : ∀ {a : Set} {n : ℕ}
   → {{Showable a}}
-  → μ (TreeF a) n
+  → μ (TreeF′ a) n
   → String
 psTree {a} {{a-Showable}} = fold-no-idx f
   where f : TreeF a String → String
@@ -103,20 +107,26 @@ psTree {a} {{a-Showable}} = fold-no-idx f
 open import IO
 import Data.Unit.Polymorphic as Poly using (⊤)
 
-ppLTree : ∀ {a b : Set} {n : ℕ} {l : Level}
-  → {{Showable a}}
+ppLTree : ∀ {a : ℕ → Set} {b : Set} {n : ℕ} {l : Level}
+  → {{∀ {m : ℕ} → Showable (a m)}}
   → {{Showable b}}
-  → μ (L a (TreeF b)) {{L-Functor}} n
+  → μ (L′ a (TreeF′ b)) n {{λ {m : ℕ} → L′-Functor {a} {m} {TreeF′ b}}}
   → IO {l} Poly.⊤
 ppLTree = putStrLn ∘ psLTree
 
 ppTree : ∀ {a : Set} {n : ℕ} {l : Level}
   → {{Showable a}}
-  → μ (TreeF a) n
+  → μ (TreeF′ a) n
   → IO {l} Poly.⊤
 ppTree = putStrLn ∘ psTree
 
+endl : ∀ {l : Level} → IO {l} Poly.⊤
+endl = putStrLn ""
+
 mainReal : IO {0ℓ} Poly.⊤
-mainReal = ppTree t >> ppLTree (inits t)
+mainReal
+  =  ppTree t          >> endl
+  >> ppLTree (inits t) >> endl
+  >> ppLTree (tails t)
 
 main = run mainReal

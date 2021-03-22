@@ -164,35 +164,36 @@ instance
   }
 
 {-# NO_POSITIVITY_CHECK #-}
-data μ (F : Set → Set) {{p : Functor F}} : ℕ → Set where
-  fix : ∀ {n : ℕ} → F (μ F {{p}} n) → μ F {{p}} (suc n)
+data μ (F : ℕ → Set → Set) : (n : ℕ) → {{∀ {m : ℕ} → Functor (F m)}} → Set where
+  fix : ∀ {m : ℕ}
+      → {{p : ∀ {m : ℕ} → Functor (F m)}}
+      → F (suc m) (μ F m {{p}})
+      → μ F (suc m) {{p}}
 
-unfix : ∀ {F : Set → Set}
+unfix : ∀ {F : ℕ → Set → Set}
   → {n : ℕ}
-  → {{p : Functor F}}
+  → {{p : ∀ {m : ℕ} → Functor (F m)}}
   → μ F (suc n)
-    ---------------
-  → F (μ F n)
+  → F (suc n) (μ F n)
 unfix (fix x) = x
 
 instance
-  μ-Showable : ∀ {F : Set → Set} {n : ℕ}
-    → {{p : Functor F}}
-    → {{∀ {a} → {{Showable a}} → Showable (F a)}}
-      -------------------------------------------
+  μ-Showable : ∀ {F : ℕ → Set → Set} {n : ℕ}
+    → {{p : ∀ {m : ℕ} → Functor (F m)}}
+    → {{∀ {a m} → {{Showable a}} → Showable (F m a)}}
     → Showable (μ F n)
   μ-Showable {_} {zero} = record { show = λ() }
   μ-Showable {F} {suc n} {{_}} {{F-Showable}} = record { show = show-μ }
     where show-μ : μ F (suc n) → String
           show-μ (fix x) = show {{F-Showable {{μ-Showable {F} {n}}}}} x
 
-fold : ∀ {F : Set → Set}
+fold : ∀ {F : ℕ → Set → Set}
   → {n : ℕ}
-  → {{p : Functor F}}
+  → {{p : ∀ {m : ℕ} → Functor (F m)}}
   → {a : ℕ → Set}
-  → (∀ {m : ℕ} → F (a m) → a (suc m))
+  → (∀ {m : ℕ} → F (suc m) (a m) → a (suc m))
   → μ F n
-    ---------------------------------
+    -----------------------------------------
   → a n
 fold {F} {suc n} {a} f (fix x)
   = f (fmap (fold {F} {n} {a} f) x)
@@ -202,99 +203,123 @@ fold-no-idx : ∀ {F : Set → Set}
   → {{p : Functor F}}
   → {a : Set}
   → (F a → a)
-  → μ F n
-    ---------------------------------
+  → μ (λ _ → F) n
+    -------------
   → a
 fold-no-idx {F} {n} {a} f
-  = fold {F} {n} {λ _ → a} (λ {_} → f)
+  = fold {λ _ → F} {n} {λ _ → a} (λ {_} → f)
 
 map : ∀ {P : Set → Set → Set}
   → {n : ℕ}
   → {{p : Bifunctor P}}
   → {a b : Set}
   → (a → b)
-  → μ (P a) {{functorial₂ a}} n
-    ---------------------------
-  → μ (P b) {{functorial₂ b}} n
+  → μ (λ _ → P a) n {{functorial₂ a}}
+    ---------------------------------
+  → μ (λ _ → P b) n {{functorial₂ b}}
 map {P} {n} {a} {b} f
-  = fold′ (fix {P _} {{p₂b}} ∘ first f)
+  = fold′ (fix {G} {{p₂b}} ∘ first f)
   where p₂a = functorial₂ a
-        p₂b = functorial₂ b
-        fold′ = fold {P a} {n} {{p₂a}} {μ (P b) {{p₂b}}}
+        p₂b = functorial₂ b
+        F = λ _ → P a
+        G = λ _ → P b
+        fold′ = fold {F} {n} {{p₂a}} {λ k → μ G k {{p₂b}}}
 
-foldl : ∀ {F : Set → Set}
-  → {{p : Functor F}}
+foldl : ∀ {F : ℕ → Set → Set}
+  → {{p : ∀ {m : ℕ} → Functor (F m)}}
   → {n : ℕ}
   → {a : Set}
   → a
-  → (a → F ⊤ → a)
-  → (F a → a)
+  → (∀ {m : ℕ} → a → F m ⊤ → a)
+  → (∀ {m : ℕ} → F m a → a)
   → μ F n
-    -------------
+    ---------------------------
   → a
 foldl {F} {suc n} {a} a₀ pass-down join (fix x)
   = join (fmap (foldl {F} {n} a′ pass-down join) x)
   where a′ = pass-down a₀ (fmap (const tt) x)
 
-L : ∀ (a : Set) → (F : Set → Set) → Set → Set
-L a F r = a × F r
+L : ∀ (a : Set) → (F : ℕ → Set → Set) → ℕ → Set → Set
+L a F n r = a × F n r
 
-L⊤ : ∀ (a : Set) → (P : Set → Set → Set) → Set → Set
-L⊤ a P = L a (P ⊤)
+L⊤ : ∀ (a : Set) → (P : ℕ → Set → Set → Set) → ℕ → Set → Set
+L⊤ a P = L a (flip P ⊤)
 
-L-Functor : ∀ {a : Set}
-  → {F : Set → Set}
-  → {{Functor F}}
-    ---------------
-  → Functor (L a F)
-_⟨$⟩_        {{L-Functor}} = fmap ∘ fmap
-identity    {{L-Functor}} {_} {x , y} = cong (x ,_) identity
-composition {{L-Functor}} {_} {_} {_} {x , y} f g = cong (x ,_) (composition f g)
+L′ : ∀ (a : ℕ → Set) → (F : ℕ → Set → Set) → ℕ → Set → Set
+L′ a F n r = a n × F n r
 
-L-Showable : ∀ {a r : Set}
-  → {F : Set → Set}
+L′-Functor : ∀ {a : ℕ → Set} {n : ℕ}
+  → {F : ℕ → Set → Set}
+  → {{∀ {m : ℕ} → Functor (F m)}}
+    -------------------
+  → Functor (L′ a F n)
+_⟨$⟩_        {{L′-Functor}} = fmap ∘ fmap
+identity    {{L′-Functor}} {_} {x , y} = cong (x ,_) identity
+composition {{L′-Functor}} {_} {_} {_} {x , y} f g = cong (x ,_) (composition f g)
+
+L-Functor : ∀ {a : Set} {n : ℕ}
+  → {F : ℕ → Set → Set}
+  → {{∀ {m : ℕ} → Functor (F m)}}
+    -----------------------------
+  → Functor (L a F n)
+L-Functor {a} {n} {F} = L′-Functor {λ _ → a} {n} {F}
+
+L-Showable : ∀ {a r : Set} {n : ℕ}
+  → {F : ℕ → Set → Set}
   → {{Showable a}}
-  → {{Showable (F r)}}
-    ------------------
-  → Showable (L a F r)
+  → {{Showable (F n r)}}
+    --------------------
+  → Showable (L a F n r)
 L-Showable {{a-Showable}} {{F-Showable}}
   = ×-Showable {{a-Showable}} {{F-Showable}}
 
 μL-Showable : ∀ {a : Set} {n : ℕ}
-  → {F : Set → Set}
-  → {{p : Functor F}}
+  → {F : ℕ → Set → Set}
+  → {{p : ∀ {m : ℕ} → Functor (F m)}}
   → {{Showable a}}
-  → {{∀ {r : Set} → {{Showable r}} → Showable (F r)}}
-    -------------------------------------------------
-  → Showable (μ (L a F) {{L-Functor}} n)
+  → {{∀ {m : ℕ} {r : Set} → {{Showable r}} → Showable (F m r)}}
+    -----------------------------------------------------------
+  → Showable (μ (L a F) n {{λ {m} → L-Functor {a} {m} {F}}})
 μL-Showable {a} {_} {F} {{_}} {{a-Showable}} {{F-Showable}}
   = μ-Showable {{_}} {{L-*-Showable}} where
-  L-*-Showable : ∀ {r} → {{Showable r}} → Showable (L a F r)
-  L-*-Showable {r} {{r-Showable}} =
+  L-*-Showable : ∀ {r n} → {{Showable r}} → Showable (L a F n r)
+  L-*-Showable {r} {n} {{r-Showable}} =
     let F-r-Showable = F-Showable {{r-Showable}}
-    in L-Showable {a} {r} {F} {{a-Showable}} {{F-r-Showable}}
+    in L-Showable {a} {r} {n} {F} {{a-Showable}} {{F-r-Showable}}
 
 extract-top
-  : ∀ {n : ℕ} {a : Set} {F : Set → Set}
-  → {{p : Functor F}}
-  → μ (L a F) {{L-Functor}} n → a
+  : ∀ {n : ℕ} {a : ℕ → Set} {F : ℕ → Set → Set}
+  → {{p : ∀ {m : ℕ} → Functor (F m)}}
+  → μ (L′ a F) n {{λ {m} → L′-Functor {a} {m} {F}}} → a n
 extract-top (fix x) = proj₁ x
 
-scan : ∀ {F : Set → Set}
+scan : ∀ {F : ℕ → Set → Set}
   → {n : ℕ}
-  → {{p : Functor F}}
-  → {a : Set}
-  → (F a → a)
+  → {{p : ∀ {m : ℕ} → Functor (F m)}}
+  → {a : ℕ → Set}
+  → (∀ {m : ℕ} → F (suc m) (a m) → a (suc m))
   → μ F n
-    ---------------------------------
-  → μ (L a F) {{L-Functor}} n
+    -----------------------------------------------------
+  → μ (L′ a F) n {{λ {m} → L′-Functor {a} {m} {F} {{p}}}}
 scan {_} {zero} _ = λ()
 scan {F} {suc n} {a} f
-  = fold {F} {suc n} {μ (L a F) {{L-Functor}}} g
-  where g : ∀ {n : ℕ}
-          → F (μ (L a F) {{L-Functor}} n)
-          → μ (L a F) {{L-Functor}} (suc n)
-        g x = fix (f (fmap extract-top x) , x)
+  = fold {F} {suc n} {λ m → μ (L′ a F) m {{p′}}} g
+  where p′ = λ {k} → L′-Functor {a} {k} {F}
+        g : ∀ {n : ℕ}
+          → F (suc n) (μ (L′ a F) n {{p′}})
+          → μ (L′ a F) (suc n) {{p′}}
+        g {n} x = fix {{p′}} (f (fmap extract-top x) , x)
+
+tails : ∀ {F : ℕ → Set → Set}
+  → {n : ℕ}
+  → {{p : ∀ {m : ℕ} → Functor (F m)}}
+  → μ F n
+    ---------------------------------
+  → μ (L′ (λ k → μ F k {{p}}) F) n
+      {{ λ {m} → L′-Functor
+          {λ k → μ F k {{p}}}
+          {m} {F} {{p}} }}
+tails = scan fix
 
 scanl : ∀ {F : Set → Set}
   → {{p : Functor F}}
@@ -302,31 +327,32 @@ scanl : ∀ {F : Set → Set}
   → {a : Set}
   → a
   → (a → F ⊤ → a)
-  → μ F n
-    -------------------------
-  → μ (L a F) {{L-Functor}} n
-scanl {_} {suc n} {a} a₀ f (fix x)
-  = fix (a′ , fmap (scanl {_} {n} a′ f) x)
+  → μ (λ _ → F) n
+    ---------------------------------------------------
+  → μ (L a (λ _ → F)) n {{L-Functor {a} {n} {λ _ → F}}}
+scanl {F} {{p}} {suc n} {a} a₀ f (fix x)
+  = fix′ (a′ , fmap (scanl {_} {n} a′ f) x)
   where a′ = f a₀ (fmap (const tt) x)
+        fix′ = fix {_} {{L-Functor {a} {n} {λ _ → F}}}
 
 inits : ∀ {P : Set → Set → Set}
   → {{p : Bifunctor P}}
   → {n : ℕ}
   → {a : Set}
-  → μ (P a) {{functorial₂ a}} n
-    -----------------------------------
-  → μ (L (List (P a ⊤)) (P a))
-      {{L-Functor {{functorial₂ _}}}} n
+  → μ (λ _ → P a) n {{functorial₂ a}}
+    ---------------------------------
+  → μ (L (List (P a ⊤)) (λ _ → P a)) n
+      {{L-Functor {_} {n} {λ _ → P a} {{functorial₂ _}}}}
 inits = scanl {{functorial₂ _}} [] (λ l x → l ++ (x ∷ []))
 
-unfold : ∀ {F : Set → Set}
+unfold : ∀ {F : ℕ → Set → Set}
   → {n : ℕ}
   → {a : ℕ → Set}
-  → {{p : Functor F}}
+  → {{p : ∀ {m : ℕ} → Functor (F m)}}
   → (a 0 → ⊥)
-  → (∀ {m : ℕ} → a (suc m) → F (a m))
+  → (∀ {m : ℕ} → a (suc m) → F (suc m) (a m))
   → a n
-    ---------------------------------
+    -----------------------------------------
   → μ F n
 unfold {_} {zero} {_} t _ x = ⊥-elim (t x)
 unfold {F} {suc n} {a} t f x =
