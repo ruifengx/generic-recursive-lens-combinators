@@ -2,6 +2,7 @@ module example.Tree where
 
 open import Utils
 open import Fixpoint
+open import Functor
 open import Show
 
 open import Data.List as List using (List; []; _∷_; map; concat)
@@ -78,10 +79,10 @@ TreeF′ a _ = TreeF a
 psLTree : ∀ {a : ℕ → Set} {b : Set} {n : ℕ}
   → {{∀ {m : ℕ} → Showable (a m)}}
   → {{Showable b}}
-  → μ (L′ a (TreeF′ b)) n {{λ {m : ℕ} → L′-Functor {a} {m} {TreeF′ b}}}
+  → μ (L′ a (TreeF′ b)) n
   → String
 psLTree {a} {b} {n} {{a-Showable}} {{b-Showable}}
-  = fold {{λ {m} → L′-Functor {a} {m} {TreeF′ b}}} f
+  = fold {{λ {m} → L′-Functor {m} {a} {TreeF′ b}}} f
   where f : ∀ {n : ℕ} → a n × TreeF b String → String
         f (x , leaf) = "leaf: @tag: " ++ show x
         f (x , branch y l r) =
@@ -110,7 +111,7 @@ import Data.Unit.Polymorphic as Poly using (⊤)
 ppLTree : ∀ {a : ℕ → Set} {b : Set} {n : ℕ} {l : Level}
   → {{∀ {m : ℕ} → Showable (a m)}}
   → {{Showable b}}
-  → μ (L′ a (TreeF′ b)) n {{λ {m : ℕ} → L′-Functor {a} {m} {TreeF′ b}}}
+  → μ (L′ a (TreeF′ b)) n
   → IO {l} Poly.⊤
 ppLTree = putStrLn ∘ psLTree
 
