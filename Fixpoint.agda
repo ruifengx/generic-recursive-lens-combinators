@@ -96,7 +96,7 @@ L′-Functor : ∀ {n : ℕ} {a : ℕ → Set}
   → Functor (L′ a F n)
 _⟨$⟩_        {{L′-Functor}} = fmap ∘ fmap
 identity    {{L′-Functor}} {_} {x , y} = cong (x ,_) identity
-composition {{L′-Functor}} {_} {_} {_} {x , y} f g = cong (x ,_) (composition f g)
+composition {{L′-Functor}} {_} {_} {_} {x , _} = cong (x ,_) composition
 
 L-Functor : ∀ {n : ℕ} {a : Set}
   → {F : ℕ → Set → Set}

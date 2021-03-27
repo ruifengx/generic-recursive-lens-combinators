@@ -17,8 +17,8 @@ record Functor (F : Set → Set) : Set₁ where
       → (id ⟨$⟩ x) ≡ x
     composition : ∀ {a b c : Set}
       → {x : F a}
-      → (f : b → c)
-      → (g : a → b)
+      → {f : b → c}
+      → {g : a → b}
         --------------------------------
       → (f ⟨$⟩ (g ⟨$⟩ x)) ≡ ((f ∘ g) ⟨$⟩ x)
 
@@ -92,8 +92,8 @@ record Bifunctor (P : Set → Set → Set) : Set₁ where
     first-second-comm
       : ∀ {a b c d : Set}
       → {x : P a b}
-      → (f : a → c)
-      → (g : b → d)
+      → {f : a → c}
+      → {g : b → d}
         --------------------
       → first f (second g x)
       ≡ second g (first f x)
@@ -113,11 +113,11 @@ record Bifunctor (P : Set → Set → Set) : Set₁ where
       bimap f₁ g₁ (bimap f₂ g₂ x)
     ≡⟨⟩
       first f₁ (second g₁ (first f₂ (second g₂ x)))
-    ≡⟨ cong (first f₁) (sym (first-second-comm f₂ g₁)) ⟩
+    ≡⟨ cong (first f₁) (sym first-second-comm) ⟩
       first f₁ (first f₂ (second g₁ (second g₂ x)))
-    ≡⟨ composition {{functorial₁ b₃}} f₁ f₂ ⟩
+    ≡⟨ composition {{functorial₁ b₃}} ⟩
       first (f₁ ∘ f₂) (second g₁ (second g₂ x))
-    ≡⟨ cong (first _) (composition {{functorial₂ a₁}} g₁ g₂) ⟩
+    ≡⟨ cong (first _) (composition {{functorial₂ a₁}}) ⟩
       first (f₁ ∘ f₂) (second (g₁ ∘ g₂) x)
     ≡⟨⟩
       bimap (f₁ ∘ f₂) (g₁ ∘ g₂) x
@@ -129,17 +129,17 @@ instance
   ×-Functor₁ : ∀ {a : Set} → Functor (_× a)
   _⟨$⟩_        {{×-Functor₁}} f (x , y) = (f x , y)
   identity    {{×-Functor₁}} = refl
-  composition {{×-Functor₁}} _ _ = refl
+  composition {{×-Functor₁}} = refl
 
   ×-Functor₂ : ∀ {a : Set} → Functor (a ×_)
   _⟨$⟩_        {{×-Functor₂}} f (x , y) = (x , f y)
   identity    {{×-Functor₂}} = refl
-  composition {{×-Functor₂}} _ _ = refl
+  composition {{×-Functor₂}} = refl
 
   ×-Bifunctor : Bifunctor _×_
   functorial₁ {{×-Bifunctor}} c = ×-Functor₁ {c}
   functorial₂ {{×-Bifunctor}} c = ×-Functor₂ {c}
-  first-second-comm {{×-Bifunctor}} _ _ = refl
+  first-second-comm {{×-Bifunctor}} = refl
 
 ⟦_∘_⟧ : ∀ {F : Set → Set} → {G : Set → Set}
   → Functor F → Functor G → Functor (F ∘ G)
@@ -153,12 +153,12 @@ instance
       ≡⟨ identity {{f}} ⟩
         x
       ∎
-  ; composition = λ {_} {_} {_} {x} h k →
+  ; composition = λ {_} {_} {_} {x} {h} {k} →
       begin
         fmap {{f}} (fmap {{g}} h) (fmap {{f}} (fmap {{g}} k) x)
-      ≡⟨ composition {{f}} (fmap {{g}} h) (fmap {{g}} k) ⟩
+      ≡⟨ composition {{f}} ⟩
         fmap {{f}} (fmap {{g}} h ∘ fmap {{g}} k) x
-      ≡⟨ cong (λ t → fmap {{f}} t x) (extensionality (composition {{g}} h k)) ⟩
+      ≡⟨ cong (λ t → fmap {{f}} t x) (extensionality (composition {{g}})) ⟩
         fmap {{f}} (fmap {{g}} (h ∘ k)) x
       ∎
   }

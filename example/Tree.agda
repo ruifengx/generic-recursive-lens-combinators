@@ -19,7 +19,7 @@ instance
   identity    {{TreeF-1}} {_} {x} with x
   ... | leaf         = refl
   ... | branch _ _ _ = refl
-  composition {{TreeF-1}} {_} {_} {_} {x} _ _ with x
+  composition {{TreeF-1}} {_} {_} {_} {x} with x
   ... | leaf         = refl
   ... | branch _ _ _ = refl
 
@@ -29,14 +29,14 @@ instance
   identity    {{TreeF-2}} {_} {x} with x
   ... | leaf         = refl
   ... | branch _ _ _ = refl
-  composition {{TreeF-2}} {_} {_} {_} {x} _ _ with x
+  composition {{TreeF-2}} {_} {_} {_} {x} with x
   ... | leaf         = refl
   ... | branch _ _ _ = refl
 
   TreeF-Bifunctor : Bifunctor TreeF
   functorial₁ {{TreeF-Bifunctor}} c = TreeF-1 {c}
   functorial₂ {{TreeF-Bifunctor}} c = TreeF-2 {c}
-  first-second-comm {{TreeF-Bifunctor}} {_} {_} {_} {_} {x} _ _ with x
+  first-second-comm {{TreeF-Bifunctor}} {_} {_} {_} {_} {x} with x
   ... | leaf         = refl
   ... | branch _ _ _ = refl
 
