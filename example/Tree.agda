@@ -127,6 +127,6 @@ mainReal : IO {0ℓ} Poly.⊤
 mainReal
   =  ppTree t          >> endl
   >> ppLTree (inits t) >> endl
-  >> ppLTree (tails t)
+  >> ppLTree (tails t) >> endl
 
 main = run mainReal
