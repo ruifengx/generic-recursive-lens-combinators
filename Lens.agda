@@ -2,6 +2,7 @@ module Lens where
 
 open import Utils
 open import Functor
+open import Fixpoint
 
 infix 2 _↔_
 
@@ -13,6 +14,8 @@ record _↔_ {l : Level} (a : Set l) (b : Set l) : Set (lsuc l) where
     put-get : ∀ {x : a} {y : b} → get (put y x) ≡ y
 
 open _↔_
+
+infixr 9 _·_
 
 _·_ : ∀ {l : Level} {a b c : Set l} → b ↔ c → a ↔ b → a ↔ c
 f · g = record
@@ -36,7 +39,7 @@ f · g = record
       ∎
   }
 
-record BFunctor (F : Set → Set) {{p : Functor F}} : Set₁ where
+record BFunctor (F : Set → Set) ⦃ p : Functor F ⦄ : Set₁ where
   field
     fzip : ∀ {a b} → F a → F b → F (a × b)
     fzip-proj₁ : ∀ {a b}
@@ -80,4 +83,25 @@ record BFunctor (F : Set → Set) {{p : Functor F}} : Set₁ where
       fy
     ∎
 
-open BFunctor {{...}} public
+open BFunctor ⦃...⦄ public
+
+bunfix : ∀ {F : ℕ → Set → Set}
+  → {n : ℕ}
+  → ⦃ p : ∀ {m : ℕ} → Functor (F m) ⦄
+  → μ F (suc n) ↔ F (suc n) (μ F n)
+get bunfix (fix x) = x
+put bunfix x _ = fix x
+get-put bunfix {fix _} = refl
+put-get bunfix = refl
+
+bfold : ∀ {n : ℕ} {a : ℕ → Set} {F : ℕ → Set → Set}
+  → ⦃ p : ∀ {m : ℕ} → Functor (F m) ⦄
+  → ⦃ ∀ {m : ℕ} → BFunctor (F m) ⦃ p ⦄ ⦄
+  → (∀ {m : ℕ} → F (suc m) (a m) ↔ a (suc m))
+    -----------------------------------------
+  → μ F n ↔ a n
+get (bfold {zero} _) ()
+put (bfold {zero} _) _ ()
+get-put (bfold {zero} _) {()}
+put-get (bfold {zero} _) {()}
+bfold {suc n} f = f · bmap (bfold {n} f) · bunfix
