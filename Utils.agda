@@ -27,13 +27,10 @@ postulate
       -----------------------
     → f ≡ g
 
-Σ-≡ : ∀ {a b : Level} {A : Set a} {B : A → Set b} {a₁ a₂ : A} {b : B a₁}
-    → (p : a₁ ≡ a₂) → (a₁ , b) ≡ (a₂ , subst B p b)
-Σ-≡ refl = refl
-
 cong-Σ : ∀ {a b c : Level}
        → {A : Set a} {B : A → Set b} {C : Set c}
        → {a₁ a₂ : A} {b : B a₁}
        → (f : Σ A B → C)
-       → (p : a₁ ≡ a₂) → f (a₁ , b) ≡ f (a₂ , subst B p b)
-cong-Σ f refl = cong f (Σ-≡ refl)
+       → (p : a₁ ≡ a₂)
+       → f (a₁ , b) ≡ f (a₂ , subst B p b)
+cong-Σ f refl = cong f refl
