@@ -71,8 +71,7 @@ module Combinator where
     snoc : ∀ {a : Set} → List a → a → List a
     snoc l x = l ++ (x ∷ [])
 
-  inits : ∀ {c : Set → Container 0ℓ 0ℓ} {a : Set}
-    → μ (c a) → μ (L (List (⟦ c a ⟧ ⊤)) (c a))
+  inits : ∀ {c : Container 0ℓ 0ℓ} → μ c → μ (L (List (⟦ c ⟧ ⊤)) c)
   inits = scanl [] snoc
 
 open Combinator public

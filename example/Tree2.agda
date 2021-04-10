@@ -111,7 +111,7 @@ endl = putStrLn ""
 mainReal : IO {0ℓ} Poly.⊤
 mainReal
   =  ppTree t                    >> endl
-  >> ppLTree (inits {TreeC} t)   >> endl
+  >> ppLTree (inits {TreeC _} t) >> endl
   >> ppLTree (tails {TreeC _} t) >> endl
 
 main = run mainReal
