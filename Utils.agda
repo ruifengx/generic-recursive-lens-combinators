@@ -17,7 +17,7 @@ open Eq using (_≡_; refl; cong; trans; sym; subst) public
 open Eq.≡-Reasoning using (begin_; _≡⟨⟩_; step-≡; _∎) public
 
 open import Level
-  using (Level; _⊔_; 0ℓ)
+  using (Level; _⊔_; 0ℓ; Lift; lift)
   renaming (zero to lzero; suc to lsuc)
   public
 
