@@ -2,7 +2,6 @@ module CLens2 where
 
 open import Utils
 open import Functor
-open import Fixpoint
 
 infix 2 _↔_
 
@@ -318,3 +317,5 @@ record BFunctor (F : Set → Set) ⦃ p : Functor F ⦄ : Set₁ where
     ∎
 
 open BFunctor ⦃...⦄ public
+
+open import Fixpoint2
