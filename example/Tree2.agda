@@ -5,6 +5,8 @@ open import CLens2
 open import Functor
 open import Show
 
+import Data.Product as P using (assocˡ; map₂)
+
 module _ where
   open import Data.Unit using (⊤)
   open import Level using (0ℓ)
@@ -79,26 +81,29 @@ instance
   ... | branch x , px | branch y , py = q x y
     × p (px leftBranch) (py leftBranch)
     × p (px rightBranch) (py rightBranch)
-  ... | _             | _             = ⊥
+  ... | leaf , _      | branch _ , _  = ⊤
+  ... | branch _ , _  | leaf , _      = ⊤
   TreeC-BFunctor .lift-c-coherence {a} {b} {c} {d} {p} {fx} {fy} prf
     with fx | fy | prf
   ... | leaf , _      | leaf , _      | tt   = tt
   ... | branch x , px | branch y , py | prf′ = prf′
-  ... | leaf , _      | branch _ , _  | ()
-  ... | branch _ , _  | leaf , _      | ()
+  ... | leaf , _      | branch _ , _  | tt   = tt
+  ... | branch _ , _  | leaf , _      | tt   = tt
   TreeC-BFunctor .lift-c-coherence-rev {_} {_} {_} {_} {_} {fx} {fy} prf
     with fx | fy | prf
   ... | leaf , _      | leaf , _      | tt   = tt
   ... | branch x , px | branch y , py | prf′ = prf′
-  ... | leaf , _      | branch _ , _  | ()
-  ... | branch _ , _  | leaf , _      | ()
+  ... | leaf , _      | branch _ , _  | tt   = tt
+  ... | branch _ , _  | leaf , _      | tt   = tt
   TreeC-BFunctor .fzip-full crt fx fy {prf} with fx | fy | prf
   ... | leaf , _      | leaf , _      | tt          = Leaf
   ... | branch x , px | branch y , py | _ , pl , pr = Branch x
     ((px leftBranch , py leftBranch), pl)
     ((px rightBranch , py rightBranch), pr)
-  ... | leaf , _      | branch _ , _  | ()
-  ... | branch _ , _  | leaf , _      | ()
+  ... | leaf , _      | branch _ , _  | tt          = Leaf
+  ... | branch x , px | leaf , _      | tt          = Branch x
+    (P.assocˡ (px leftBranch , crt (px leftBranch)))
+    (P.assocˡ (px rightBranch , crt (px rightBranch)))
   TreeC-BFunctor {_} {_} {qxx} .fsplit-full {a} {b} {p} fxy with fxy
   ... | leaf , _      = tt
   ... | branch x , px = qxx , proj₂ (px leftBranch) , proj₂ (px rightBranch)
@@ -109,32 +114,32 @@ instance
     with fx | fy | pprf | qprf
   ... | leaf , _     | leaf , _     | tt          | tt          = tt
   ... | branch _ , _ | branch _ , _ | t , pl , pr | _ , ql , qr = t , (pl , ql) , (pr , qr)
-  ... | leaf , _     | branch _ , _ | ()          | ()
-  ... | branch _ , _ | leaf , _     | ()          | ()
+  ... | leaf , _     | branch _ , _ | tt          | tt          = tt
+  ... | branch _ , _ | leaf , _     | tt          | tt          = tt
   TreeC-BFunctor .lift-c-apply {a} {b} {p} {q} {fx} {fy} imp prf
     with fx | fy | prf
   ... | leaf , _     | leaf , _     | tt          = tt
   ... | branch _ , _ | branch _ , _ | t , pl , pr = t , imp pl , imp pr
-  ... | leaf , _     | branch _ , _ | ()
-  ... | branch _ , _ | leaf , _     | ()
+  ... | leaf , _     | branch _ , _ | tt          = tt
+  ... | branch _ , _ | leaf , _     | tt          = tt
   TreeC-BFunctor .fzip-full-lift₁ {a} {b} {a′} {p} {fx} {fy} {f} {crt} {prf}
     with fx | fy | prf
   ... | leaf , _      | leaf , _      | tt          = cong (leaf ,_) (ext-explicit λ())
+  ... | leaf , _      | branch _ , _  | tt          = cong (leaf ,_) (ext-explicit λ())
   ... | branch x , px | branch y , py | t , pl , pr = cong (branch x ,_) (branchEq refl refl)
-  ... | leaf , _      | branch _ , _  | ()
-  ... | branch _ , _  | leaf , _      | ()
+  ... | branch x , px | leaf , _      | tt          = cong (branch x ,_) (branchEq refl refl)
   TreeC-BFunctor .fzip-proj₁ {a} {b} {p} {fx} {fy} {crt} {prf}
     with fx | fy | prf
   ... | leaf , _      | leaf , _      | tt          = cong (leaf ,_) (ext-explicit λ())
+  ... | leaf , _      | branch _ , _  | tt          = cong (leaf ,_) (ext-explicit λ())
   ... | branch x , px | branch y , py | t , pl , pr = cong (branch x ,_) (branchEq refl refl)
-  ... | leaf , _      | branch _ , _  | ()
-  ... | branch _ , _  | leaf , _      | ()
+  ... | branch x , px | leaf , _      | tt          = cong (branch x ,_) (branchEq refl refl)
   TreeC-BFunctor .lift-c-equiv {a} {b} {p} {q} {fx} {fy} crt pprf qprf
     with fx | fy | pprf | qprf
   ... | leaf , _      | leaf , _      | tt    | tt          = tt
+  ... | leaf , _      | branch _ , _  | tt    | _           = tt
   ... | branch x , px | branch y , py | t , _ | _ , ql , qr = t , ql , qr
-  ... | leaf , _      | branch _ , _  | ()    | _
-  ... | branch _ , _  | leaf , _      | ()    | _
+  ... | branch _ , _  | leaf , _      | tt    | _           = tt
   TreeC-BFunctor .fzip-fork {a} {b} {c} {p} {fx} {f} {g} {crt} {prf} with fx | prf
   ... | leaf , _      | tt          = Leaf
     , cong (leaf ,_) (ext-explicit λ())
