@@ -13,7 +13,7 @@ open import Data.Nat using (ℕ; zero; suc) public
 open import Function using (flip; const; _∘_; _∘′_; _$_; id) public
 
 import Relation.Binary.PropositionalEquality as Eq
-open Eq using (_≡_; refl; cong; trans; sym; subst) public
+open Eq using (_≡_; refl; cong; cong₂; trans; sym; subst) public
 open Eq.≡-Reasoning using (begin_; _≡⟨⟩_; step-≡; _∎) public
 
 open import Level
@@ -26,6 +26,12 @@ postulate
     → (∀ {x : A} → f x ≡ g x)
       -----------------------
     → f ≡ g
+
+ext-explicit : ∀ {m n : Level} {A : Set m} {B : Set n} {f g : A → B}
+    → (∀ (x : A) → f x ≡ g x)
+      -----------------------
+    → f ≡ g
+ext-explicit f = extensionality (λ {x} → f x)
 
 cong-Σ : ∀ {a b c : Level}
        → {A : Set a} {B : A → Set b} {C : Set c}
