@@ -40,9 +40,9 @@ L a F = C.const a C.× F
 makeL : ∀ {a b : Set} {c : Container 0ℓ 0ℓ} → a → ⟦ c ⟧ b → ⟦ L a c ⟧ b
 makeL tag (s , p) = (tag , s) , λ{ (inj₂ t) → p t }
 
-module Combinator where
+open import Data.List using (List; []; _∷_; _++_; length; lookup; foldr) 
 
-  open import Data.List using (List; []; _∷_; _++_) 
+module Combinator where
 
   extract-top : ∀ {a : Set} {c : Container 0ℓ 0ℓ} → μ (L a c) → a
   extract-top (fix ((x , _) , _)) = x
@@ -75,3 +75,32 @@ module Combinator where
   inits = scanl [] snoc
 
 open Combinator public
+
+open import Data.Bool using (Bool; true; false)
+open import Data.Nat using (_+_; _⊔_; _≡ᵇ_)
+open import Data.Fin.Base using (Fin; zero; suc)
+
+record HasDepth (c : Container 0ℓ 0ℓ) : Set₁ where
+  field
+    enum-pos : ∀ (s : c .Shape) → List (c .Position s)
+    enum-pos-complete
+      : (s : c .Shape)
+      → (p : c .Position s)
+        -----------------------
+      → let l = enum-pos s in
+        Σ[ n ∈ Fin (length l) ]
+        lookup l n ≡ p
+
+  ffoldr : ∀ {a b : Set} → (a → b → b) → b → ⟦ c ⟧ a → b
+  ffoldr f e (s , p) = foldr (λ k r → f (p k) r) e (enum-pos s)
+
+  is-leaf : ∀ {a} → ⟦ c ⟧ a → Bool
+  is-leaf = ffoldr (λ _ _ → true) false
+
+  depth : μ c → ℕ
+  depth = fold (λ x → 1 + ffoldr Data.Nat._⊔_ 0 x)
+
+  depth≢0 : ∀ {x : μ c} → depth x ≢ 0
+  depth≢0 {fix _} ()
+
+open HasDepth ⦃...⦄ public
