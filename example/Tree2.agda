@@ -200,10 +200,7 @@ ppTree = putStrLn ∘ psTree
 endl : ∀ {l : Level} → IO {l} Poly.⊤
 endl = putStrLn ""
 
-mainReal : IO {0ℓ} Poly.⊤
-mainReal
-  =  ppTree t                    >> endl
-  >> ppLTree (inits {TreeC _} t) >> endl
-  >> ppLTree (tails {TreeC _} t) >> endl
-
-main = run mainReal
+main = run {0ℓ} do
+  ppTree t; endl
+  ppLTree (inits {TreeC _} t); endl
+  ppLTree (tails {TreeC _} t); endl
