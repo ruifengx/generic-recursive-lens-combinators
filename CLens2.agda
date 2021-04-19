@@ -1,7 +1,11 @@
 module CLens2 where
 
 open import Utils
-open import Functor
+
+import Data.Product as Prod
+open import Data.Container
+  using (Container; ⟦_⟧; _∈_)
+  renaming (map to fmap)
 
 infix 2 _↔_
 
@@ -80,13 +84,26 @@ _×₂_ : ∀ {a b : Set}
   → a → b → Set (m ⊔ n)
 _×₂_ p q x y = p x y × q x y
 
-record BFunctor (F : Set → Set) ⦃ p : Functor F ⦄ : Set₁ where
+private
+  put-f-full : ∀ {a b : Set} (f : a ↔ b)
+             → Σ[ (y , x) ∈ b × a ] c-view f y (get f x)
+             → Σ[ (x′ , x) ∈ a × a ] c-source f x′ x
+  put-f-full f ((y , x) , prf) =
+    let x′ , prf′ = put-full f y x {prf}
+    in (x′ , x) , prf′
+
+record BFunctor (C : Container 0ℓ 0ℓ) : Set₁ where
   field
-    lift-c : ∀ {a b} → (a → b → Set) → F a → F b → Set
+    lift-c-full : ∀ {a b : Set} → (fx : ⟦ C ⟧ a) → ⟦ C ⟧ b → ((x : a) → b → x ∈ fx → Set) → Set
+
+  lift-c : ∀ {a b : Set} → (a → b → Set) → ⟦ C ⟧ a → ⟦ C ⟧ b → Set
+  lift-c p fx fy = lift-c-full fx fy (λ x y _ → p x y)
+
+  field
     lift-c-coherence : ∀ {a b c d}
       → {p : c → d → Set}
-      → {fx : F a}
-      → {fy : F b}
+      → {fx : ⟦ C ⟧ a}
+      → {fy : ⟦ C ⟧ b}
       → {f : a → c}
       → {g : b → d}
       → lift-c p (fmap f fx) (fmap g fy)
@@ -94,8 +111,8 @@ record BFunctor (F : Set → Set) ⦃ p : Functor F ⦄ : Set₁ where
       → lift-c (λ x y → p (f x) (g y)) fx fy
     lift-c-coherence-rev : ∀ {a b c d}
       → {p : c → d → Set}
-      → {fx : F a}
-      → {fy : F b}
+      → {fx : ⟦ C ⟧ a}
+      → {fy : ⟦ C ⟧ b}
       → {f : a → c}
       → {g : b → d}
       → lift-c (λ x y → p (f x) (g y)) fx fy
@@ -103,59 +120,56 @@ record BFunctor (F : Set → Set) ⦃ p : Functor F ⦄ : Set₁ where
       → lift-c p (fmap f fx) (fmap g fy)
     fzip-full : ∀ {a b} {p : a → b → Set}
       → ((x : a) → Σ[ y ∈ b ] p x y)
-      → (fx : F a)
-      → (fy : F b)
+      → (fx : ⟦ C ⟧ a)
+      → (fy : ⟦ C ⟧ b)
       → {lift-c p fx fy}
         -------------------------------
-      → F (Σ[ (x , y) ∈ a × b ] p x y)
+      → ⟦ C ⟧ (Σ[ (x , y) ∈ a × b ] p x y)
     fsplit-full : ∀ {a b} {p : a → b → Set}
-      → (fxy : F (Σ[ (x , y) ∈ a × b ] p x y))
+      → (fxy : ⟦ C ⟧ (Σ[ (x , y) ∈ a × b ] p x y))
         --------------------------------------
       → lift-c p (fmap (proj₁ ∘ proj₁) fxy)
                  (fmap (proj₂ ∘ proj₁) fxy)
 
   fzip : ∀ {a b p}
     → ((x : a) → Σ[ y ∈ b ] p x y)
-    → (fx : F a)
-    → (fy : F b)
+    → (fx : ⟦ C ⟧ a)
+    → (fy : ⟦ C ⟧ b)
       -----------------------------
-    → {lift-c p fx fy} → F (a × b)
+    → {lift-c p fx fy} → ⟦ C ⟧ (a × b)
   fzip {a} {b} {p} c fx fy {prf} = fmap proj₁ (fzip-full {a} {b} {p} c fx fy {prf})
 
   field
     lift-c-≡ : ∀ {a}
-      → {fx : F a}
+      → {fx : ⟦ C ⟧ a}
       → lift-c _≡_ fx fx
     lift-c-× : ∀ {a b} {p q : a → b → Set}
-      → {fx : F a}
-      → {fy : F b}
+      → {fx : ⟦ C ⟧ a}
+      → {fy : ⟦ C ⟧ b}
       → lift-c p fx fy
       → lift-c q fx fy
         ---------------------
       → lift-c (p ×₂ q) fx fy
     lift-c-apply : ∀ {a b} {p q : a → b → Set}
-      → {fx : F a}
-      → {fy : F b}
+      → {fx : ⟦ C ⟧ a}
+      → {fy : ⟦ C ⟧ b}
       → (∀ {x y} → p x y → q x y)
       → lift-c p fx fy
         -------------------------
       → lift-c q fx fy
     fzip-full-lift₁ : ∀ {a b a′} {p : a′ → b → Set}
-      → {x : F a}
-      → {y : F b}
+      → {x : ⟦ C ⟧ a}
+      → {y : ⟦ C ⟧ b}
       → {f : a → a′}
       → {c : (x : a′) → Σ[ y ∈ b ] p x y}
       → {prf : lift-c p (fmap f x) y}
         ---------------------------------
       → fzip-full c (fmap f x) y {prf}
       ≡ fmap (λ ((x , y), prf) → (f x , y), prf)
-          (fzip-full (c ∘ f) x y
-            {lift-c-coherence
-              (subst (lift-c _ _)
-              (sym identity) prf)})
+          (fzip-full (c ∘ f) x y {lift-c-coherence prf})
     fzip-proj₁ : ∀ {a b} {p : a → b → Set}
-      → {x : F a}
-      → {y : F b}
+      → {x : ⟦ C ⟧ a}
+      → {y : ⟦ C ⟧ b}
       → {c : (x : a) → Σ[ y ∈ b ] p x y}
       → {prf : lift-c p x y}
         ---------------------------------
@@ -163,77 +177,56 @@ record BFunctor (F : Set → Set) ⦃ p : Functor F ⦄ : Set₁ where
     lift-c-equiv : ∀ {a b}
       → {p : a → b → Set}
       → {q : a → b → Set}
-      → {x : F a}
-      → {y : F b}
+      → {x : ⟦ C ⟧ a}
+      → {y : ⟦ C ⟧ b}
       → (c : (x : a) → Σ[ y ∈ b ] p x y)
       → (prf : lift-c p x y)
       → lift-c q x (fmap proj₂ (fzip c x y {prf}))
         ------------------------------------------
       → lift-c q x y
     fzip-fork : ∀ {a b c} {p : b → c → Set}
-      → {x : F a}
+      → {x : ⟦ C ⟧ a}
       → {f : a → b}
       → {g : a → c}
       → {c : (y : b) → Σ[ z ∈ c ] p y z}
       → {prf : lift-c p (fmap f x) (fmap g x)}
         ---------------------------------------
-      → Σ[ xp ∈ F (Σ[ x ∈ a ] p (f x) (g x)) ]
+      → Σ[ xp ∈ ⟦ C ⟧ (Σ[ x ∈ a ] p (f x) (g x)) ]
         fzip-full c (fmap f x) (fmap g x) {prf}
       ≡ fmap (λ (x , p) → (f x , g x), p) xp
       × fmap proj₁ xp ≡ x
 
   fzip-lift₁ : ∀ {a b a′} {p : a′ → b → Set}
-    → {x : F a}
-    → {y : F b}
+    → {x : ⟦ C ⟧ a}
+    → {y : ⟦ C ⟧ b}
     → {f : a → a′}
     → {c : (x : a′) → Σ[ y ∈ b ] p x y}
     → {prf : lift-c p (fmap f x) y}
       ---------------------------------
     → fzip c (fmap f x) y {prf}
-    ≡ fmap (first f) (fzip (c ∘ f) x y
-        {lift-c-coherence
-          (subst (lift-c _ _)
-          (sym identity) prf)})
-  fzip-lift₁ {_} {_} {_} {_} {x} {y} {f} {c} =
-    begin
-      fmap proj₁ (fzip-full c (fmap f x) y)
-    ≡⟨ cong (fmap _) fzip-full-lift₁ ⟩
-      fmap proj₁ (fmap (λ ((x , y), prf) → (f x , y), prf)
-        (fzip-full (c ∘ f) x y))
-    ≡⟨ composition ⟩
-      fmap (λ ((x , y), prf) → (f x , y))
-        (fzip-full (c ∘ f) x y)
-    ≡⟨ sym composition ⟩
-      fmap (first f) (fzip (c ∘ f) x y)
-    ∎
+    ≡ fmap (Prod.map₁ f) (fzip (c ∘ f) x y {lift-c-coherence prf})
+  fzip-lift₁ {_} {_} {_} {_} {x} {y} {f} {c} = cong (fmap proj₁) fzip-full-lift₁
 
-  fzip-with : ∀ {a b c p}
+  fzip-with : ∀ {a b c : Set} {p}
     → ((x : a) → Σ[ y ∈ b ] p x y)
     → (a → b → c)
-    → (x : F a)
-    → (y : F b)
+    → (x : ⟦ C ⟧ a)
+    → (y : ⟦ C ⟧ b)
       -----------------------------
-    → {lift-c p x y} → F c
+    → {lift-c p x y} → ⟦ C ⟧ c
   fzip-with c k fx fy {prf} = fmap (λ (x , y) → k x y) (fzip c fx fy {prf})
 
   bmap : ∀ {a b}
     → (f : a ↔ b)
     → ((y : b) → Σ[ x ∈ a ] c-view f y (get f x))
       -------------------------------------------
-    → F a ↔ F b
+    → ⟦ C ⟧ a ↔ ⟦ C ⟧ b
   c-source (bmap f c) = lift-c (c-source f)
   c-view (bmap f c) = lift-c (c-view f)
   get (bmap f c) = fmap (get f)
   put-full (bmap {a} {b} f c) fy fx {cv} = fx″ , prf′ where
-    put-f-full : Σ[ (y , x) ∈ b × a ] c-view f y (get f x)
-               → Σ[ (x′ , x) ∈ a × a ] c-source f x′ x
-    put-f-full ((y , x) , prf) =
-      let x′ , prf′ = put-full f y x {prf}
-      in (x′ , x) , prf′
-    cv′ = lift-c-coherence $
-          subst (λ w → lift-c (c-view f) w (fmap (get f) fx))
-          (sym identity) cv
-    r = fmap put-f-full (fzip-full c fy fx {cv′})
+    cv′ = lift-c-coherence cv
+    r = fmap (put-f-full f) (fzip-full c fy fx {cv′})
     fx′ = fmap (proj₂ ∘ proj₁) r
     fx″ = fmap (proj₁ ∘ proj₁) r
     cs = fsplit-full r
@@ -244,13 +237,13 @@ record BFunctor (F : Set → Set) ⦃ p : Functor F ⦄ : Set₁ where
       ≡⟨⟩
         fmap (get f)
           (fmap (proj₁ ∘ proj₁)
-            (fmap put-f-full (fzip-full c fy fx {cv′})))
-      ≡⟨ trans composition composition ⟩
-        fmap (get f ∘ proj₁ ∘ proj₁ ∘ put-f-full)
+            (fmap (put-f-full f) (fzip-full c fy fx {cv′})))
+      ≡⟨⟩
+        fmap (get f ∘ proj₁ ∘ proj₁ ∘ put-f-full f)
           (fzip-full c fy fx {cv′})
-      ≡⟨ cong (flip fmap _) (extensionality λ {((y , x), prf)} → put-get f {x} {y} {prf}) ⟩
+      ≡⟨ cong (flip fmap (fzip-full c fy fx {cv′})) (extensionality λ {((y , x), prf)} → put-get f {x} {y} {prf}) ⟩
         fmap (proj₁ ∘ proj₁) (fzip-full c fy fx {cv′})
-      ≡⟨ sym composition ⟩
+      ≡⟨⟩
         fmap proj₁ (fzip c fy fx {cv′})
       ≡⟨ fzip-proj₁ ⟩
         fy
@@ -259,20 +252,20 @@ record BFunctor (F : Set → Set) ⦃ p : Functor F ⦄ : Set₁ where
       begin
         fx′
       ≡⟨⟩
-        fmap (proj₂ ∘ proj₁) (fmap put-f-full (fzip-full c fy fx {cv′}))
-      ≡⟨ composition ⟩
-        fmap (proj₂ ∘ proj₁ ∘ put-f-full) (fzip-full c fy fx {cv′})
+        fmap (proj₂ ∘ proj₁) (fmap (put-f-full f) (fzip-full c fy fx {cv′}))
+      ≡⟨⟩
+        fmap (proj₂ ∘ proj₁ ∘ put-f-full f) (fzip-full c fy fx {cv′})
       ≡⟨⟩
         fmap (proj₂ ∘ proj₁) (fzip-full c fy fx {cv′})
-      ≡⟨ sym composition ⟩
+      ≡⟨⟩
         fmap proj₂ (fzip c fy fx {cv′})
       ≡⟨ cong-Σ (λ (fy , cv′) → fmap proj₂ (fzip c fy fx {cv′})) fy≡fmap-get-f-fx″ ⟩
         fmap proj₂ (fzip c (fmap (get f) fx″) fx)
-      ≡⟨ cong (fmap _) fzip-lift₁ ⟩
-        fmap proj₂ (fmap (first (get f)) (fzip (c ∘ get f) fx″ fx))
-      ≡⟨ composition ⟩
-        fmap (proj₂ ∘ first (get f)) (fzip (c ∘ get f) fx″ fx)
-      ≡⟨ cong (flip fmap _) (extensionality refl) ⟩
+      ≡⟨ cong (fmap proj₂) fzip-lift₁ ⟩
+        fmap proj₂ (fmap (Prod.map₁ (get f)) (fzip (c ∘ get f) fx″ fx))
+      ≡⟨⟩
+        fmap (proj₂ ∘ Prod.map₁ (get f)) (fzip (c ∘ get f) fx″ fx)
+      ≡⟨⟩
         fmap proj₂ (fzip (c ∘ get f) fx″ fx)
       ∎
     prf′ = lift-c-equiv (c ∘ get f) _ (subst (lift-c _ _) fx′≅fx cs)
@@ -288,29 +281,28 @@ record BFunctor (F : Set → Set) ⦃ p : Functor F ⦄ : Set₁ where
   get-put (bmap {a} {b} f c) {x} {cv} =
     let xp , (fzip-prf , xp-x-rel) = fzip-fork
     in begin
-      fmap (proj₁ ∘ proj₁) (fmap _ (fzip-full c (fmap (get f) x) x))
-    ≡⟨ composition ⟩
+      fmap (proj₁ ∘ proj₁) (fmap (put-f-full f) (fzip-full c (fmap (get f) x) x))
+    ≡⟨⟩
       fmap (λ ((y , x) , prf) → put f y x {prf}) (fzip-full c (fmap (get f) x) x)
-    ≡⟨ cong-Σ {_} {_} {_} {_} {lift-c _ (fmap _ x)}
-       (λ (z , prf) → fmap _ (fzip-full _ _ z {prf})) (sym identity) ⟩
+    ≡⟨⟩
       fmap (λ ((y , x) , prf) → put f y x {prf}) (fzip-full c (fmap (get f) x) (fmap id x))
-    ≡⟨ cong (fmap _) fzip-prf ⟩
+    ≡⟨ cong (fmap (λ ((y , x) , prf) → put f y x {prf})) fzip-prf ⟩
       fmap (λ ((y , x) , prf) → put f y x {prf}) (fmap (λ (x , p) → (get f x , x), p) xp)
-    ≡⟨ composition ⟩
+    ≡⟨⟩
       fmap (λ (x , p) → put f (get f x) x {p}) xp
-    ≡⟨ cong (flip fmap xp) (extensionality (get-put f)) ⟩
+    ≡⟨ cong (flip fmap xp) (ext-explicit (λ (x , p) → get-put f {x} {p})) ⟩
       fmap proj₁ xp
     ≡⟨ xp-x-rel ⟩
       x
     ∎
   put-get (bmap {a} {b} f c) {x} {y} =
     begin
-      fmap (get f) (fmap (proj₁ ∘ proj₁) (fmap _ (fzip-full c y x)))
-    ≡⟨ trans composition composition ⟩
+      fmap (get f) (fmap (proj₁ ∘ proj₁) (fmap (put-f-full f) (fzip-full c y x)))
+    ≡⟨⟩
       fmap (λ ((y , x) , prf) → get f (put f y x {prf})) (fzip-full c y x)
-    ≡⟨ cong (flip fmap (fzip-full c y x)) (extensionality (put-get f)) ⟩
+    ≡⟨ cong (flip fmap (fzip-full c y x)) (ext-explicit (λ ((y , x) , p) → put-get f {x} {y} {p})) ⟩
       fmap (proj₁ ∘ proj₁) (fzip-full c y x)
-    ≡⟨ sym composition ⟩
+    ≡⟨⟩
       fmap proj₁ (fzip c y x)
     ≡⟨ fzip-proj₁ ⟩
       y
@@ -319,3 +311,12 @@ record BFunctor (F : Set → Set) ⦃ p : Functor F ⦄ : Set₁ where
 open BFunctor ⦃...⦄ public
 
 open import Fixpoint2
+
+μ-c : ∀ {c : Container 0ℓ 0ℓ}
+  → ⦃ BFunctor c ⦄
+    ---------------
+  → μ c → μ c → Set
+μ-c {c} fx fy = go fx fy (subtree-wellfounded fx)
+  where go : (x : μ c) → μ c → Acc _is-subtree-of_ x → Set
+        go x y (acc a) = lift-c-full (unfix x) (unfix y)
+          (λ x y r → go x y (a x (subtree r)))

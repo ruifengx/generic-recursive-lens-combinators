@@ -5,7 +5,7 @@ open import Functor
 open import Show
 
 import Data.Container as C
-open C using (Container; Shape; Position; ⟦_⟧; μ) public
+open C using (Container; Shape; Position; ⟦_⟧; μ; _∈_) public
 import Data.Container.Combinator as C
 
 open import Data.W using (sup; induction)
@@ -112,12 +112,7 @@ open HasDepth ⦃...⦄ public
 
 open import Data.Container.Relation.Unary.Any renaming (map to ◇-map)
 open import Data.Container.Relation.Unary.All renaming (map to □-map)
-open import Induction.WellFounded
-
-record _is-subtree-of_ {c : Container 0ℓ 0ℓ} (fx fy : μ c) : Set where
-  field proof : ◇ c (λ y → y ≡ fx) (unfix fy)
-
-open _is-subtree-of_
+open import Induction.WellFounded public
 
 fold-universal : ∀ {c : Container 0ℓ 0ℓ} {a : Set}
   → {f : ⟦ c ⟧ a → a}
@@ -163,13 +158,19 @@ fold-fusion {c} {a} {b} {f} {g} {h} E =
 fold-fix-id : ∀ {c : Container 0ℓ 0ℓ} → fold {0ℓ} {0ℓ} {0ℓ} {c} fix ≡ id
 fold-fix-id = sym (fold-universal refl)
 
+record _is-subtree-of_ {c : Container 0ℓ 0ℓ} (fx fy : μ c) : Set where
+  constructor subtree
+  field proof : fx ∈ unfix fy
+
+open _is-subtree-of_
+
 subtree-wellfounded : {c : Container 0ℓ 0ℓ} → WellFounded (_is-subtree-of_ {c})
 subtree-wellfounded {c} x = subst (Acc _is-subtree-of_) x′≡x acc′ where
   subtree-alg : ⟦ c ⟧ (∃ (Acc _is-subtree-of_)) → ∃ (Acc _is-subtree-of_)
   subtree-alg fx@(s , p) = fix (C.map proj₁ fx) , acc (λ y r →
     let pos , prf = r .proof .◇.proof
         acc-prf = proj₂ (p pos)
-    in subst (Acc _is-subtree-of_) prf acc-prf)
+    in subst (Acc _is-subtree-of_) (sym prf) acc-prf)
   x′acc = fold subtree-alg x
   x′ = proj₁ x′acc
   acc′ = proj₂ x′acc
