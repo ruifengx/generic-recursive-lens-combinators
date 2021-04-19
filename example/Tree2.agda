@@ -61,6 +61,8 @@ t = branch′ 3 (branch′ 1 leaf′ (branch′ 4 leaf′ leaf′)) leaf′
 open import Data.List as List using (List; []; _∷_; map; concat)
 open import Data.String using (lines; unlines; _++_)
 
+open import Data.Container.Relation.Unary.Any using (any)
+
 instance
   TreeC-Showable : ∀ {a : Set}
     → ⦃ Showable a ⦄
@@ -75,12 +77,12 @@ instance
   TreeC-BFunctor : ∀ {t : Set}
     → {q : t → t → Set}
     → {∀ {x} → q x x}
-    → BFunctor ⟦ TreeC t ⟧
-  TreeC-BFunctor {_} {q} .lift-c p fx fy with fx | fy
+    → BFunctor (TreeC t)
+  TreeC-BFunctor {_} {q} .lift-c-full fx fy p with fx | fy
   ... | leaf , _      | leaf , _      = ⊤
   ... | branch x , px | branch y , py = q x y
-    × p (px leftBranch) (py leftBranch)
-    × p (px rightBranch) (py rightBranch)
+    × p (px leftBranch) (py leftBranch) (any (leftBranch , refl))
+    × p (px rightBranch) (py rightBranch) (any (rightBranch , refl))
   ... | leaf , _      | branch _ , _  = ⊤
   ... | branch _ , _  | leaf , _      = ⊤
   TreeC-BFunctor .lift-c-coherence {a} {b} {c} {d} {p} {fx} {fy} prf

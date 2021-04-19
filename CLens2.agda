@@ -6,6 +6,7 @@ import Data.Product as Prod
 open import Data.Container
   using (Container; ⟦_⟧; _∈_)
   renaming (map to fmap)
+  public
 
 infix 2 _↔_
 
