@@ -5,14 +5,19 @@ open import Functor
 open import Show
 
 import Data.Container as C
-open C using (map)
 open C using (Container; Shape; Position; ⟦_⟧; μ) public
 import Data.Container.Combinator as C
 
-open import Data.W using (sup)
+open import Data.W using (sup; induction)
 open import Data.W using () renaming (foldr to fold) public
 
 pattern fix x = sup x
+
+unfix : ∀ {c : Container 0ℓ 0ℓ} → μ c → ⟦ c ⟧ (μ c)
+unfix (fix x) = x
+
+unfix-fix : ∀ {c : Container 0ℓ 0ℓ} {x : μ c} → fix (unfix x) ≡ x
+unfix-fix {_} {fix x} = refl
 
 record ShowableContainer (c : Container 0ℓ 0ℓ) : Set where
   field showAlg : ⟦ c ⟧ String → String
@@ -21,7 +26,7 @@ open ShowableContainer ⦃...⦄ public
 
 instance
   ⟦·⟧-Functor : {c : Container 0ℓ 0ℓ} → Functor ⟦ c ⟧
-  ⟦·⟧-Functor ._⟨$⟩_        = map
+  ⟦·⟧-Functor ._⟨$⟩_        = C.map
   ⟦·⟧-Functor .identity    = refl
   ⟦·⟧-Functor .composition = refl
 
@@ -104,3 +109,76 @@ record HasDepth (c : Container 0ℓ 0ℓ) : Set₁ where
   depth≢0 {fix _} ()
 
 open HasDepth ⦃...⦄ public
+
+open import Data.Container.Relation.Unary.Any renaming (map to ◇-map)
+open import Data.Container.Relation.Unary.All renaming (map to □-map)
+open import Induction.WellFounded
+
+record _is-subtree-of_ {c : Container 0ℓ 0ℓ} (fx fy : μ c) : Set where
+  field proof : ◇ c (λ y → y ≡ fx) (unfix fy)
+
+open _is-subtree-of_
+
+fold-universal : ∀ {c : Container 0ℓ 0ℓ} {a : Set}
+  → {f : ⟦ c ⟧ a → a}
+  → {h : μ c → a}
+  → f ∘ C.map h ≡ h ∘ fix
+    ---------------------
+  → h ≡ fold f
+fold-universal {c} {a} {f} {h} E = ext-explicit λ x → induction P alg x
+  where P = λ x → h x ≡ fold f x
+        alg : {t : ⟦ c ⟧ (μ c)} → □ c P t → h (fix t) ≡ fold f (fix t)
+        alg {t} (all all-P-t) =
+          begin
+            h (fix t)
+          ≡⟨ cong (_$ t) (sym E) ⟩
+            f (C.map h t)
+          ≡⟨⟩
+            f (proj₁ t , λ p → h (proj₂ t p))
+          ≡⟨ cong (f ∘ (proj₁ t ,_)) (ext-explicit all-P-t) ⟩
+            f (proj₁ t , λ p → fold f (proj₂ t p))
+          ≡⟨⟩
+            f (C.map (fold f) t)
+          ≡⟨⟩
+            fold f (fix t)
+          ∎
+
+fold-fusion : ∀ {c : Container 0ℓ 0ℓ} {a b : Set}
+  → {f : ⟦ c ⟧ a → a}
+  → {g : ⟦ c ⟧ b → b}
+  → {h : a → b}
+  → h ∘ f ≡ g ∘ C.map h
+  → h ∘ fold f ≡ fold g
+fold-fusion {c} {a} {b} {f} {g} {h} E =
+  fold-universal $ begin
+    g ∘ C.map (h ∘ fold f)
+  ≡⟨⟩
+    g ∘ C.map h ∘ C.map (fold f)
+  ≡⟨ cong (_∘ C.map (fold f)) (sym E) ⟩
+    h ∘ f ∘ C.map (fold f)
+  ≡⟨⟩
+    h ∘ fold f ∘ fix
+  ∎
+
+fold-fix-id : ∀ {c : Container 0ℓ 0ℓ} → fold {0ℓ} {0ℓ} {0ℓ} {c} fix ≡ id
+fold-fix-id = sym (fold-universal refl)
+
+subtree-wellfounded : {c : Container 0ℓ 0ℓ} → WellFounded (_is-subtree-of_ {c})
+subtree-wellfounded {c} x = subst (Acc _is-subtree-of_) x′≡x acc′ where
+  subtree-alg : ⟦ c ⟧ (∃ (Acc _is-subtree-of_)) → ∃ (Acc _is-subtree-of_)
+  subtree-alg fx@(s , p) = fix (C.map proj₁ fx) , acc (λ y r →
+    let pos , prf = r .proof .◇.proof
+        acc-prf = proj₂ (p pos)
+    in subst (Acc _is-subtree-of_) prf acc-prf)
+  x′acc = fold subtree-alg x
+  x′ = proj₁ x′acc
+  acc′ = proj₂ x′acc
+  x′≡x : x′ ≡ x
+  x′≡x =
+    begin
+      proj₁ (fold subtree-alg x)
+    ≡⟨ cong (_$ x) (fold-fusion {_} {_} {_} {subtree-alg} {fix} {proj₁} refl) ⟩
+      fold fix x
+    ≡⟨ cong (_$ x) fold-fix-id ⟩
+      x
+    ∎

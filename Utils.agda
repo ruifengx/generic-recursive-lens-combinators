@@ -3,7 +3,7 @@ module Utils where
 open import Data.Unit using (⊤; tt) public
 open import Data.Empty using (⊥; ⊥-elim) public
 open import Data.Product
-  using (_×_; proj₁; proj₂; Σ-syntax; Σ;
+  using (_×_; proj₁; proj₂; Σ-syntax; Σ; ∃;
          _,_; <_,_>; uncurry; uncurry′)
   public
 open import Data.Sum using (_⊎_; inj₁; inj₂) public
