@@ -8,10 +8,8 @@ import Data.Container as C
 open C using (Container; Shape; Position; ⟦_⟧; μ; _∈_) public
 import Data.Container.Combinator as C
 
-open import Data.W using (sup; induction)
+open import Data.W using (induction) renaming (sup to fix) public
 open import Data.W using () renaming (foldr to fold) public
-
-pattern fix x = sup x
 
 unfix : ∀ {c : Container 0ℓ 0ℓ} → μ c → ⟦ c ⟧ (μ c)
 unfix (fix x) = x
@@ -163,6 +161,17 @@ record _is-subtree-of_ {c : Container 0ℓ 0ℓ} (fx fy : μ c) : Set where
   field proof : fx ∈ unfix fy
 
 open _is-subtree-of_
+
+subtree-unique : {C : Container 0ℓ 0ℓ} {x : μ C}
+  → {a b : Acc _is-subtree-of_ x} → a ≡ b
+subtree-unique {C} {x} = induction P alg x
+  where P = λ x → ∀ {a b : Acc _is-subtree-of_ x} → a ≡ b
+        alg : {t : ⟦ C ⟧ (μ C)} → □ C P t → P (fix t)
+        alg {t} (all all-P-t) {acc a} {acc b} = cong acc $
+          ext₂ λ t′ E@(subtree (any (pos , Et′))) →
+          let Eq = all-P-t pos
+              S = cong-Σ (λ (t′ , E) → a t′ E ≡ b t′ E) Et′
+          in subst id (sym S) Eq
 
 subtree-wellfounded : {c : Container 0ℓ 0ℓ} → WellFounded (_is-subtree-of_ {c})
 subtree-wellfounded {c} x = subst (Acc _is-subtree-of_) x′≡x acc′ where

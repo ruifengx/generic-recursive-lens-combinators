@@ -7,6 +7,8 @@ open import Data.Container
   using (Container; ⟦_⟧; _∈_)
   renaming (map to fmap)
   public
+open import Data.Container.Relation.Unary.All
+  using (□; all) renaming (map to □-map)
 
 infix 2 _↔_
 
@@ -38,6 +40,14 @@ record _↔_ {l : Level} (a : Set l) (b : Set l) : Set (lsuc l) where
   put-Σ x (y′ , p) = put y′ x {p}
 
 open _↔_
+
+lens-syntax : ∀ (a b : Set)
+  → (p : a → a → Set)
+  → (q : b → b → Set)
+  → Set₁
+lens-syntax a b p q = Σ[ l ∈ a ↔ b ] (c-source l ≡ p × c-view l ≡ q)
+
+syntax lens-syntax a b p q = ⦅ p ⦆ a ↔ b ⦅ q ⦆
 
 infixr 9 _·_
 
@@ -101,6 +111,10 @@ record BFunctor (C : Container 0ℓ 0ℓ) : Set₁ where
   lift-c p fx fy = lift-c-full fx fy (λ x y _ → p x y)
 
   field
+    lift-c-self : ∀ {a} {P : a → a → Set}
+      → {fx : ⟦ C ⟧ a}
+      → lift-c P fx fx
+      → □ C (λ x → P x x) fx
     lift-c-coherence : ∀ {a b c d}
       → {p : c → d → Set}
       → {fx : ⟦ C ⟧ a}
@@ -317,7 +331,211 @@ open import Fixpoint2
   → ⦃ BFunctor c ⦄
     ---------------
   → μ c → μ c → Set
-μ-c {c} fx fy = go fx fy (subtree-wellfounded fx)
-  where go : (x : μ c) → μ c → Acc _is-subtree-of_ x → Set
-        go x y (acc a) = lift-c-full (unfix x) (unfix y)
-          (λ x y r → go x y (a x (subtree r)))
+μ-c {c} = λ fx fy → go fx fy (subtree-wellfounded fx)
+  module MC where
+  go : (x : μ c) → μ c → Acc _is-subtree-of_ x → Set
+  go x y (acc a) = lift-c-full (unfix x) (unfix y)
+    (λ x y r → go x y (a x (subtree r)))
+
+μ-c-unfix : ∀ {C : Container 0ℓ 0ℓ}
+  → ⦃ p : BFunctor C ⦄
+  → {x y : μ C}
+  → μ-c x y ≡ lift-c μ-c (unfix x) (unfix y)
+μ-c-unfix {C} {x} {y} with acc a ← subtree-wellfounded x
+  = cong (lift-c-full (unfix x) (unfix y))
+  $ ext₂ λ x′ y′ → ext-explicit λ r →
+  cong (MC.go x′ y′) {a x′ (subtree r)} {subtree-wellfounded x′} subtree-unique
+
+μ-c-fix : ∀ {C : Container 0ℓ 0ℓ}
+  → ⦃ p : BFunctor C ⦄
+  → {x y : ⟦ C ⟧ (μ C)}
+  → lift-c μ-c x y ≡ μ-c (fix x) (fix y)
+μ-c-fix {C} {x} {y} = sym (μ-c-unfix {C} {fix x} {fix y})
+
+open import Induction.WellFounded
+
+bunfix : ∀ {C : Container 0ℓ 0ℓ}
+  → ⦃ p : BFunctor C ⦄
+  → ⦅ μ-c ⦆ μ C ↔ ⟦ C ⟧ (μ C) ⦅ lift-c μ-c ⦆
+bunfix = l , refl , refl where
+  l = record
+    { c-source = μ-c
+    ; c-view = lift-c μ-c
+    ; get = λ x → unfix x
+    ; put-full = λ y x {cv} → fix y , subst id (sym μ-c-unfix) cv
+    ; coherence = λ {x} cs → subst id μ-c-unfix cs
+    ; get-put = λ{ {fix x} → refl }
+    ; put-get = refl
+    }
+
+unfoldWf : ∀ {C : Container 0ℓ 0ℓ} {a : Set}
+  → (_<_ : a → a → Set)
+  → WellFounded _<_
+  → (∀ (x : a) → ⟦ C ⟧ (Σ[ y ∈ a ] (y < x)))
+    ----------------------------------------
+  → a → μ C
+unfoldWf {C} {a} _<_ wf f x = go x (wf x)
+  where go : (x : a) → Acc _<_ x → μ C
+        go x (acc r) = fix (fmap (λ{ (y , y<x) → go y (r y y<x) }) (f x))
+
+{-# NON_TERMINATING #-}
+unfold‴ : ∀ {C : Container 0ℓ 0ℓ} {A : Set}
+  → (P : μ C → A → Set)
+  → (alg : A → ⟦ C ⟧ A)
+  → (liftP : (x : A)
+           → (fr : ⟦ C ⟧ (Σ[ (t , x) ∈ μ C × A ] P t x))
+           → fmap (proj₂ ∘ proj₁) fr ≡ alg x
+           → P (fix (fmap (proj₁ ∘ proj₁) fr)) x)
+  → (x : A) → Σ[ t ∈ μ C ] P t x
+unfold‴ {C} {A} P alg liftP x =
+  let res : ⟦ C ⟧ (Σ[ (t , x) ∈ μ C × A ] P t x)
+      res = fmap (λ x → let (t , p) = unfold‴ P alg liftP x in (t , x) , p) (alg x)
+  in fix (fmap (proj₁ ∘ proj₁) res) , liftP x res refl
+
+unfoldWf″ : ∀ {C : Container 0ℓ 0ℓ} {A : Set}
+  → (_<_ : A → A → Set)
+  → WellFounded _<_
+  → (P : μ C → A → Set)
+  → (alg : (x : A)
+         → ((y : A) → y < x → Σ[ t ∈ μ C ] P t y)
+         → Σ[ t ∈ μ C ] P t x)
+  → (x : A) → Σ[ t ∈ μ C ] P t x
+unfoldWf″ {C} {A} _<_ wf P alg x = go x (wf x)
+  where go : (x : A) → Acc _<_ x → Σ[ t ∈ μ C ] P t x
+        go x (acc r) = alg x (λ y y<x → go y (r y y<x))
+
+{-# NON_TERMINATING #-}
+unfold″ : ∀ {C : Container 0ℓ 0ℓ} {A : Set}
+  → (P : μ C → A → Set)
+  → (alg : (x : A)
+         → ((y : A) → Σ[ t ∈ μ C ] P t y)
+         → Σ[ t ∈ μ C ] P t x)
+  → (x : A) → Σ[ t ∈ μ C ] P t x
+unfold″ P alg x = alg x (unfold″ P alg)
+
+{-# NON_TERMINATING #-}
+unfold′ : ∀ {C : Container 0ℓ 0ℓ} {a : Set}
+  → (a → ⟦ C ⟧ a)
+  → a → μ C
+unfold′ alg = fix ∘ fmap (unfold′ alg) ∘ alg
+
+bfold : ∀ {C : Container 0ℓ 0ℓ} {a : Set}
+  → {q : a → a → Set}
+  → ⦃ p : BFunctor C ⦄
+  → (ff : ⦅ lift-c q ⦆ ⟦ C ⟧ a ↔ a ⦅ q ⦆)
+  → let f = proj₁ ff in
+    ((x : a) → Σ[ y ∈ μ C ] q x (fold (get f) y))
+  → ⦅ μ-c ⦆ μ C ↔ a ⦅ q ⦆
+bfold {C} {a} {q} ⦃ p ⦄ (f , (Ecs , Ecv)) crt = l , refl , refl where
+  -- 1. Define 'put-full' with 'unfold″', prove 'put-get' alongside
+  D = Σ[ (y , x) ∈ a × μ C ] (q y (fold (get f) x))
+  P : μ C → D → Set
+  P t′ ((y , t) , _)
+    = fold (get f) t′ ≡ y
+    × (fold (get f) t ≡ y → t′ ≡ t)
+    × μ-c t′ t
+  alg-put : (x : D)
+    → ((y : D) → Σ[ t ∈ μ C ] P t y)
+    → Σ[ t ∈ μ C ] P t x
+  alg-put ((e , fix fx) , cv0) rec = let
+    -- core logic of put: 'res' is the final result 
+    cv = subst (λ k → k _ _) (sym Ecv) cv0
+    fa , prf = put-full f e (fmap (fold (get f)) fx) {cv}
+    prf′ = subst (λ k → k _ _) Ecs prf
+    fd = fzip-full crt fa fx {lift-c-coherence prf′}
+    mid : ⟦ C ⟧
+      (Σ[ (y , t′ , t) ∈ a × μ C × μ C ]
+          fold (get f) t′ ≡ y
+        × (fold (get f) t ≡ y → t′ ≡ t)
+        × μ-c t′ t)
+    mid = fmap (λ s@((y , t), _) → let (t′ , p) = rec s in (y , t′ , t) , p) fd
+    res = fmap (proj₁ ∘ proj₂ ∘ proj₁) mid
+    -- we prove put-get alongside definition of put
+    -- 'pg-witness' is for put-get relation
+    pg-witness : ⟦ C ⟧ (Σ[ (s , t′) ∈ a × μ C ] fold (get f) t′ ≡ s)
+    pg-witness = fmap (λ ((s , t′ , _), (p , _)) → (s , t′), p) mid
+    pg-wit-rel : fmap (fold (get f)) res ≡ fmap (proj₁ ∘ proj₁) pg-witness
+    pg-wit-rel = ×-≡ refl (ext-explicit λ pos → proj₂ (proj₂ pg-witness pos))
+    pg-wit₁≈fa : fmap (proj₁ ∘ proj₁) pg-witness ≡ fa
+    pg-wit₁≈fa = fzip-proj₁
+    -- "raw" put-get, forms complete put-get when combined with put-get of 'f'
+    this-put-get-raw : fmap (fold (get f)) res ≡ fa
+    this-put-get-raw = trans pg-wit-rel pg-wit₁≈fa
+    this-put-get : fold (get f) (fix res) ≡ e
+    this-put-get = trans (cong (get f) this-put-get-raw) (put-get f)
+    -- we prove get-put alongside definition of put
+    this-get-put : get f (fmap (fold (get f)) fx) ≡ e → fix res ≡ fix fx
+    this-get-put E = let
+      -- 'fa' and 'fx' are similar in shape
+      fa≈fx : fa ≡ fmap (fold (get f)) fx
+      fa≈fx = subst {A = Σ[ e ∈ a ] c-view f e (fold (get f) (fix fx))}
+        (λ (e , cv) → put f e (fmap (fold (get f)) fx) {cv} ≡ fmap (fold (get f)) fx)
+        (×-≡ E refl) (get-put f)
+      -- ... thus 'fzip' on them is identical to a fork
+      xp , fd≈xp-raw , xp≈fx = fzip-fork {C} {μ C} {a} {μ C}
+        {λ x y → q x (fold (get f) y)} {fx} {fold (get f)} {id} {crt}
+        {subst (λ fa → lift-c (λ x y → q x (fold (get f) y)) fa fx)
+          fa≈fx (lift-c-coherence prf′)}
+      fd≈xp : fd ≡ fmap (λ (x , p) → (fold (get f) x , x), p) xp
+      fd≈xp = subst-Σ {A = ⟦ C ⟧ a}
+        {B = λ fa → lift-c (λ x y → q x (fold (get f) y)) fa fx}
+        (λ (fa , prf) → fzip-full {C} crt fa fx {prf}
+          ≡ fmap (λ (x , p) → (fold (get f) x , x), p) xp) (sym fa≈fx)
+        (subst-cancel {B = λ fa → lift-c (λ x y → q x (fold (get f) y)) fa fx}
+          {z = lift-c-coherence prf′}) fd≈xp-raw
+      -- 'gp-witness' is for get-put relation
+      gp-witness : ⟦ C ⟧ (Σ[ (t′ , t) ∈ μ C × μ C ] t′ ≡ t)
+      gp-witness = fmap (λ (t , p) →
+        let (t′ , (_ , p′ , _)) = rec ((fold (get f) t , t), p)
+        in (t′ , t), p′ refl) xp
+      res≡wit₁ : res ≡ fmap (proj₁ ∘ proj₁) gp-witness
+      res≡wit₁ = cong (fmap (λ s@((y , t), _) →
+        let (t′ , (_ , p , _)) = rec s in t′)) fd≈xp
+      wit₂≡fx : fmap (proj₂ ∘ proj₁) gp-witness ≡ fx
+      wit₂≡fx = xp≈fx
+      wit₁≡wit₂ : fmap (proj₁ ∘ proj₁) gp-witness ≡ fmap (proj₂ ∘ proj₁) gp-witness
+      wit₁≡wit₂ = ×-≡ refl (ext-explicit λ pos → proj₂ (proj₂ gp-witness pos))
+      in cong fix (trans res≡wit₁ (trans wit₁≡wit₂ wit₂≡fx))
+    -- prove the implied 'c-source' condition after put
+    -- * first goal: form a 'lift-c μ-c' pattern
+    cs-raw : lift-c μ-c res (fmap proj₂ (fzip crt fa fx {lift-c-coherence prf′}))
+    cs-raw = fsplit-full (fmap (λ ((_ , t′ , t), (_ , _ , p)) → (t′ , t), p) mid)
+    -- * second goal: apply 'lift-c-equiv' to expose 'fx' to top-level
+    --   premise: unify 'fa' and 'res', this is where 'put-get' becomes useful
+    prf″ : lift-c (λ a x → q a (fold (get f) x)) (fmap (fold (get f)) res) fx
+    prf″ = subst (λ a → lift-c (λ a x → q a (fold (get f) x)) a fx)
+      (sym this-put-get-raw) (lift-c-coherence prf′)
+    cs′ : lift-c μ-c res (fmap proj₂ (fzip crt (fmap (fold (get f)) res) fx {prf″}))
+    cs′ = subst {A = Σ[ fa ∈ ⟦ C ⟧ a ] lift-c (λ a x → q a (fold (get f) x)) fa fx}
+      (λ (fa , prf) → lift-c μ-c res (fmap proj₂ (fzip crt fa fx {prf})))
+      (sym (×-≡ this-put-get-raw refl)) cs-raw
+    cs″ : lift-c μ-c res (fmap proj₂ (fzip (crt ∘ fold (get f))
+      res fx {lift-c-coherence {g = id} prf″}))
+    cs″ = subst (lift-c μ-c res ∘ fmap proj₂) fzip-lift₁ cs′
+    -- * finish proof: transform 'lift-c μ-c' into 'μ-c'
+    cs : μ-c (fix res) (fix fx)
+    cs = subst id μ-c-fix (lift-c-equiv _ _ cs″)
+    in fix res , this-put-get , this-get-put , cs
+  -- 2. Prove 'coherence'
+  Pcoh : μ C → Set
+  Pcoh x = μ-c x x → q (fold (get f) x) (fold (get f) x)
+  alg-coh : ∀ {t} → □ C Pcoh t → Pcoh (fix t)
+  alg-coh {s , p} (all all-Pcoh-t) cs =
+    let cs′ = lift-c-self (subst id (sym μ-c-fix) cs) .□.proof
+        coh-f = subst (λ k → k _ _) Ecv
+              ∘ coherence f
+              ∘ subst (λ k → k _ _) (sym Ecs)
+        p′ pos = _ , all-Pcoh-t pos (cs′ pos)
+    in coh-f (fsplit-full (s , p′))
+  l = record
+    { c-source = μ-c
+    ; c-view = q
+    ; get = fold (get f)
+    ; put-full = λ y x {cv} →
+      let r , _ , _ , p = unfold″ P alg-put ((y , x) , cv) in r , p
+    ; coherence = λ {x} cs → induction Pcoh alg-coh x cs
+    ; get-put = λ {x} {cv} →
+      let r , _ , p , _ = unfold″ P alg-put ((fold (get f) x , x) , cv) in p refl
+    ; put-get = λ {x} {y} {cv} →
+      let _ , p , _ = unfold″ P alg-put ((y , x) , cv) in p
+    }
