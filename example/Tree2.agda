@@ -19,7 +19,7 @@ module _ where
   TreeC : Set → Container 0ℓ 0ℓ
   TreeC a = const ⊤ ⊎ (const a × id × id)
 
-open import Utils
+open import Utils hiding (_⊔_)
 
 TreeShape : Set → Set
 TreeShape a = TreeC a .Shape
@@ -155,6 +155,227 @@ instance
   ... | branch x , px | t , pl , pr = Branch x (px leftBranch , pl) (px rightBranch , pr)
     , cong (branch x ,_) (branchEq refl refl)
     , cong (branch x ,_) (branchEq refl refl)
+
+open import Data.Bool using (Bool; true; false; if_then_else_; T)
+open import Relation.Nullary using (yes; no)
+open import Relation.Nullary.Decidable using (⌊_⌋)
+open import Relation.Binary.PropositionalEquality using (inspect; [_])
+
+import Data.Integer as Int
+import Data.Integer.Properties as Int
+open import IntOmega
+
+unwrap-fin : (x : ℤω) → x ≢ -∞ → ℤ
+unwrap-fin -∞      C with () ← C refl
+unwrap-fin (fin x) _ = x
+
+_:⊔_ : ℤ → ℤω → ℤ
+_:⊔_ = λ x y → unwrap-fin (fin x ⊔ y) (p {x} {y})
+  module MinZZω where
+  p : ∀ {x y} → fin x ⊔ y ≢ -∞
+  p {_} { -∞ }  ()
+  p {_} {fin _} ()
+
+data _≈_ : ℤω → ℤω → Set where
+  both-infinity : -∞ ≈ -∞
+  both-finite : ∀ (m n : ℤ) → fin m ≈ fin n
+
+ctrue : ∀ {a : Set} → a → a → Set
+ctrue _ _ = ⊤
+
+TP : ∀ {t : Set} → BFunctor (TreeC t)
+TP {t} = TreeC-BFunctor {t} {ctrue} {tt}
+
+fin-unwrap-fin : ∀ (x : ℤω) {p : x ≢ -∞} → fin (unwrap-fin x p) ≡ x
+fin-unwrap-fin -∞ {C} with () ← C refl
+fin-unwrap-fin (fin x) = refl
+
+⊓-absorbs-:⊔ : ∀ (x : ℤ) (y : ℤω) → x Int.⊓ (x :⊔ y) ≡ x
+⊓-absorbs-:⊔ x -∞      = Int.⊓-idem x
+⊓-absorbs-:⊔ x (fin y) = Int.⊓-absorbs-⊔ x y
+
+⊔-sel3 : ∀ (x : ℤ) (y z : ℤω)
+  → x ≡ x :⊔ (y ⊔ z)
+  ⊎ y ≡ fin (x :⊔ (y ⊔ z))
+  ⊎ z ≡ fin (x :⊔ (y ⊔ z))
+⊔-sel3 x y z with ⊔-sel (fin x) (y ⊔ z)
+... | inj₁ E = inj₁ (sym (fin-injective (trans (fin-unwrap-fin _) E)))
+... | inj₂ E with ⊔-sel y z
+... | inj₁ E′ rewrite E′ = inj₂ (inj₁ (sym (trans (fin-unwrap-fin _) E)))
+... | inj₂ E′ rewrite E′ = inj₂ (inj₂ (sym (trans (fin-unwrap-fin _) E)))
+
+bmaxAlg : ⦅ lift-c ⦃ TP ⦄ _≈_ ⦆ ⟦ TreeC ℤ ⟧ ℤω ↔ ℤω ⦅ _≈_ ⦆
+bmaxAlg = res , refl , refl where
+  res : ⟦ TreeC ℤ ⟧ ℤω ↔ ℤω
+  res .c-source = lift-c _≈_
+  res .c-view = _≈_
+  -- 'get'ing a 'branch' shall always give 'fin'
+  -- we make it obvious to Agda by exposing 'fin' unconditionally
+  res .get (leaf , _)     = -∞
+  res .get (branch x , p) = fin (x :⊔ (p leftBranch ⊔ p rightBranch))
+  -- now that 'get (branch x , _) ≡ fin _' is obvious ...
+  -- we are able to pattern match on 'y ≈ get′ t'
+  res .put-full -∞      (leaf , _)     {both-infinity}   = Leaf , tt
+  res .put-full (fin m) (branch x , p) {both-finite _ _}
+    = Branch x″ (k l′) (k r′) , tt , prf (p leftBranch) , prf (p rightBranch)
+    module BMaxAlg where
+    x′ = x Int.⊓ m
+    l′ = p leftBranch ⊓ fin m
+    r′ = p rightBranch ⊓ fin m
+    M = x′ :⊔ (l′ ⊔ r′)
+    x″ = if ⌊ x′ Int.≟ M ⌋ then m else x′
+    k = λ y → if y ≡ᵇ fin M then fin m else y
+    prf : (x : ℤω) → k (x ⊓ fin m) ≈ x
+    prf -∞ = both-infinity
+    prf (fin x) with (fin x ⊓ fin m) ≡ᵇ fin M
+    ... | true = both-finite _ _
+    ... | false = both-finite _ _
+  res .coherence {leaf , _}     _ = both-infinity
+  res .coherence {branch _ , _} _ = both-finite _ _
+  res .get-put {leaf , _} {both-infinity} = ×-≡ refl (ext-explicit λ())
+  res .get-put {branch x , p} {both-finite _ _}
+    = ×-≡ (cong branch Ex) (branchEq El Er) where
+    m = x :⊔ (p leftBranch ⊔ p rightBranch)
+    x′ = x Int.⊓ m
+    M = x′ :⊔ ((p leftBranch ⊓ fin m) ⊔ (p rightBranch ⊓ fin m))
+    Ex : (if ⌊ x′ Int.≟ M ⌋ then m else x′) ≡ x
+    Ex with x′ Int.≟ M
+    ... | yes E
+      -- absorb into 'x' in 1st clause
+      rewrite ⊓-absorbs-:⊔ x (p leftBranch ⊔ p rightBranch)
+      -- remove 'unwrap-fin's
+      | fin-unwrap-fin (fin x ⊔ (p leftBranch ⊔ p rightBranch))
+        {MinZZω.p {x} {p leftBranch ⊔ p rightBranch}}
+      -- absorb into 'p leftBranch' in 2nd clause
+      | cong (λ r → p leftBranch ⊓ (fin x ⊔ r))
+        (⊔-comm (p leftBranch) (p rightBranch))
+      | sym (⊔-assoc (fin x) (p rightBranch) (p leftBranch))
+      | ⊔-comm (fin x ⊔ p rightBranch) (p leftBranch)
+      | ⊓-absorbs-⊔ (p leftBranch) (fin x ⊔ p rightBranch)
+      -- absorb into 'p rightBranch' in 3rd clause
+      | cong (p rightBranch ⊓_)
+        (sym (⊔-assoc (fin x) (p leftBranch) (p rightBranch)))
+      | ⊔-comm (fin x ⊔ p leftBranch) (p rightBranch)
+      | ⊓-absorbs-⊔ (p rightBranch) (fin x ⊔ p leftBranch)
+      = sym E
+    ... | no ¬E = ⊓-absorbs-:⊔ x (p leftBranch ⊔ p rightBranch)
+    l′ = p leftBranch ⊓ fin m
+    r′ = p rightBranch ⊓ fin m
+    El : (if l′ ≡ᵇ fin M then fin m else l′)
+       ≡ subst (λ s → Position (TreeC ℤ) s → ℤω)
+         (sym (cong (λ x₁ → branch x₁) Ex)) p leftBranch
+    El with l′ ≟ fin M
+    ... | yes E rewrite Ex
+      -- drop 'fin unwrap-fin' structure in lhs
+      | fin-unwrap-fin (fin x ⊔ (p leftBranch ⊔ p rightBranch))
+        {MinZZω.p {x} {p leftBranch ⊔ p rightBranch}}
+      -- absorb lhs into 'p leftBranch'
+      | ⊔-comm (p leftBranch) (p rightBranch)
+      | cong (p leftBranch ⊓_)
+        (sym (⊔-assoc (fin x) (p rightBranch) (p leftBranch)))
+      | ⊔-comm (fin x ⊔ p rightBranch) (p leftBranch)
+      | ⊓-absorbs-⊔ (p leftBranch) (fin x ⊔ p rightBranch)
+      -- absorb into 'x' in 1st clause
+      | ⊓-absorbs-:⊔ x (p rightBranch ⊔ p leftBranch)
+      -- absorb into 'p rightBranch' in 3nd clause
+      | ⊔-comm (p rightBranch) (p leftBranch)
+      | cong (p rightBranch ⊓_)
+        (sym (⊔-assoc (fin x) (p leftBranch) (p rightBranch)))
+      | ⊔-comm (fin x ⊔ p leftBranch) (p rightBranch)
+      | ⊓-absorbs-⊔ (p rightBranch) (fin x ⊔ p leftBranch)
+      -- drop 'fin unwrap-fin' structure in rhs
+      | fin-unwrap-fin (fin x ⊔ (p leftBranch ⊔ p rightBranch))
+        {MinZZω.p {x} {p leftBranch ⊔ p rightBranch}}
+      = sym E
+    ... | no ¬E rewrite Ex
+      -- absorbs into 'p leftBranch'
+      | fin-unwrap-fin (fin x ⊔ (p leftBranch ⊔ p rightBranch))
+        {MinZZω.p {x} {p leftBranch ⊔ p rightBranch}}
+      | ⊔-comm (p leftBranch) (p rightBranch)
+      | cong (p leftBranch ⊓_)
+        (sym (⊔-assoc (fin x) (p rightBranch) (p leftBranch)))
+      | ⊔-comm (fin x ⊔ p rightBranch) (p leftBranch)
+      | ⊓-absorbs-⊔ (p leftBranch) (fin x ⊔ p rightBranch)
+      = refl
+    Er : (if r′ ≡ᵇ fin M then fin m else r′)
+       ≡ subst (λ s → Position (TreeC ℤ) s → ℤω)
+         (sym (cong (λ x₁ → branch x₁) Ex)) p rightBranch
+    Er with r′ ≟ fin M
+    ... | yes E rewrite Ex
+      -- drop 'fin unwrap-fin' structure in lhs
+      | fin-unwrap-fin (fin x ⊔ (p leftBranch ⊔ p rightBranch))
+        {MinZZω.p {x} {p leftBranch ⊔ p rightBranch}}
+      -- absorb into 'x' in 1st clause
+      | ⊓-absorbs-:⊔ x (p leftBranch ⊔ p rightBranch)
+      -- absorb lhs into 'p leftBranch' in lhs
+      | cong (p rightBranch ⊓_)
+        (sym (⊔-assoc (fin x) (p leftBranch) (p rightBranch)))
+      | ⊔-comm (fin x ⊔ p leftBranch) (p rightBranch)
+      | ⊓-absorbs-⊔ (p rightBranch) (fin x ⊔ p leftBranch)
+      -- absorb into 'p leftBranch' in 2nd clause
+      | cong (λ r → p leftBranch ⊓ (fin x ⊔ r))
+        (⊔-comm (p leftBranch) (p rightBranch))
+      | cong (p leftBranch ⊓_)
+        (sym (⊔-assoc (fin x) (p rightBranch) (p leftBranch)))
+      | ⊔-comm (fin x ⊔ p rightBranch) (p leftBranch)
+      | ⊓-absorbs-⊔ (p leftBranch) (fin x ⊔ p rightBranch)
+      -- drop 'fin unwrap-fin' structure in rhs
+      | fin-unwrap-fin (fin x ⊔ (p leftBranch ⊔ p rightBranch))
+        {MinZZω.p {x} {p leftBranch ⊔ p rightBranch}}
+      = sym E
+    ... | no ¬E rewrite Ex
+      -- absorbs into 'p leftBranch'
+      | fin-unwrap-fin (fin x ⊔ (p leftBranch ⊔ p rightBranch))
+        {MinZZω.p {x} {p leftBranch ⊔ p rightBranch}}
+      | cong (p rightBranch ⊓_)
+        (sym (⊔-assoc (fin x) (p leftBranch) (p rightBranch)))
+      | ⊔-comm (fin x ⊔ p leftBranch) (p rightBranch)
+      | ⊓-absorbs-⊔ (p rightBranch) (fin x ⊔ p leftBranch)
+      = refl
+  res .put-get {leaf , _}     { -∞ }  {both-infinity}   = refl
+  res .put-get {branch x , p} {fin m} {both-finite _ _}
+    = cong fin Em where
+    x′ = x Int.⊓ m
+    l′ = p leftBranch ⊓ fin m
+    r′ = p rightBranch ⊓ fin m
+    M = x′ :⊔ (l′ ⊔ r′)
+    x″ = if ⌊ x′ Int.≟ M ⌋ then m else x′
+    k = λ y → if y ≡ᵇ fin M then fin m else y
+    fin-x″≤fin-m : fin x″ ≤ fin m
+    fin-x″≤fin-m with x′ Int.≟ M
+    ... | yes _ = fin≤fin Int.≤-refl
+    ... | no _ = fin≤fin (Int.i⊓j≤j x m)
+    k-l′≤fin-m : k l′ ≤ fin m
+    k-l′≤fin-m with l′ ≡ᵇ fin M
+    ... | true = fin≤fin Int.≤-refl
+    ... | false = x⊓y≤y (p leftBranch) (fin m)
+    k-r′≤fin-m : k r′ ≤ fin m
+    k-r′≤fin-m with r′ ≡ᵇ fin M
+    ... | true = fin≤fin Int.≤-refl
+    ... | false = x⊓y≤y (p rightBranch) (fin m)
+    Em : x″ :⊔ ((k l′) ⊔ (k r′)) ≡ m
+    Em with ⊔-sel3 x′ l′ r′
+    Em | inj₁ E with x′ Int.≟ M 
+    ... | yes _ = fin-injective (trans (fin-unwrap-fin _)
+      (x≥y⇒x⊔y≡x (⊔-lub k-l′≤fin-m k-r′≤fin-m)))
+    ... | no ¬E = ⊥-elim (¬E E)
+    Em | inj₂ (inj₁ E) with l′ ≟ fin M 
+    ... | yes _ = fin-injective
+      $ trans (fin-unwrap-fin (fin x″ ⊔ (fin m ⊔ k r′)))
+      $ trans (cong (fin x″ ⊔_) (⊔-comm (fin m) (k r′)))
+      $ trans (sym (⊔-assoc (fin x″) (k r′) (fin m)))
+      $ trans (⊔-comm (fin x″ ⊔ k r′) (fin m))
+      $ x≥y⇒x⊔y≡x {fin m} {fin x″ ⊔ k r′}
+      $ ⊔-lub {fin m} {fin x″} {k r′} fin-x″≤fin-m k-r′≤fin-m
+    ... | no ¬E = ⊥-elim (¬E E)
+    Em | inj₂ (inj₂ E) with r′ ≟ fin M 
+    ... | yes _ = fin-injective
+      $ trans (fin-unwrap-fin (fin x″ ⊔ (k l′ ⊔ fin m)))
+      $ trans (sym (⊔-assoc (fin x″) (k l′) (fin m)))
+      $ trans (⊔-comm (fin x″ ⊔ k l′) (fin m))
+      $ x≥y⇒x⊔y≡x {fin m} {fin x″ ⊔ k l′}
+      $ ⊔-lub {fin m} {fin x″} {k l′} fin-x″≤fin-m k-l′≤fin-m
+    ... | no ¬E = ⊥-elim (¬E E)
 
 map2 : ∀ {a b : Set} → (a → b) → (a → b) → List a → List b
 map2 f-init f [] = []

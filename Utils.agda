@@ -9,6 +9,7 @@ open import Data.Product
 open import Data.Sum using (_⊎_; inj₁; inj₂) public
 
 open import Data.Nat using (ℕ; zero; suc) public
+open import Data.Integer using (ℤ; +_; -[1+_]) public
 
 open import Function using (flip; const; _∘_; _∘′_; _$_; id) public
 

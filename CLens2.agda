@@ -39,7 +39,7 @@ record _↔_ {l : Level} (a : Set l) (b : Set l) : Set (lsuc l) where
   put-Σ : (x : a) → Σ[ y′ ∈ b ](c-view y′ (get x)) → a
   put-Σ x (y′ , p) = put y′ x {p}
 
-open _↔_
+open _↔_ public
 
 lens-syntax : ∀ (a b : Set)
   → (p : a → a → Set)
