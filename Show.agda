@@ -9,6 +9,7 @@ open import Data.Char using (Char) public
 
 import Agda.Builtin.String as Char renaming (primShowChar to show)
 import Data.Nat.Show as Nat using (show)
+import Data.Integer.Show as Int using (show)
 
 record Showable {l : Level} (a : Set l) : Set l where
   field
@@ -41,6 +42,9 @@ open String using (_++_)
 instance
   ℕ-Showable : Showable ℕ
   show {{ℕ-Showable}} = Nat.show
+
+  ℤ-Showable : Showable ℤ
+  show {{ℤ-Showable}} = Int.show
 
   Char-Showable : Showable Char
   show {{Char-Showable}} = Char.show
