@@ -7,6 +7,9 @@ open import Show
 
 import Data.Product as P using (assocˡ; map₂)
 
+open import Data.Container.Relation.Unary.All
+  using (□; all) renaming (map to □-map)
+
 module _ where
   open import Data.Unit using (⊤)
   open import Level using (0ℓ)
@@ -85,6 +88,9 @@ instance
     × p (px rightBranch) (py rightBranch) (any (rightBranch , refl))
   ... | leaf , _      | branch _ , _  = ⊤
   ... | branch _ , _  | leaf , _      = ⊤
+  TreeC-BFunctor {_} {q} .lift-c-self {_} {P} {fx} prf with fx | prf
+  ... | leaf , _      | tt          = all λ()
+  ... | branch x , px | _ , pl , pr = all λ{ leftBranch → pl; rightBranch → pr }
   TreeC-BFunctor .lift-c-coherence {a} {b} {c} {d} {p} {fx} {fy} prf
     with fx | fy | prf
   ... | leaf , _      | leaf , _      | tt   = tt
