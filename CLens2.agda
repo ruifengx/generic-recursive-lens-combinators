@@ -419,6 +419,26 @@ unfold′ : ∀ {C : Container 0ℓ 0ℓ} {a : Set}
   → a → μ C
 unfold′ alg = fix ∘ fmap (unfold′ alg) ∘ alg
 
+makeCreate : ∀ {C : Container 0ℓ 0ℓ} {A : Set}
+  → {q : A → A → Set}
+  → (∀ {x y} → x ≡ y → q x y)
+  → (f : ⟦ C ⟧ A → A)
+  → ((x : A) → Σ[ fy ∈ ⟦ C ⟧ A ] x ≡ (f fy))
+  → (x : A) → Σ[ y ∈ μ C ] q x (fold f y)
+makeCreate {C} {A} {q} q-refl f step-crt x
+  = let y , prf = unfold″ P alg-crt x in y , q-refl prf
+  where P : μ C → A → Set
+        P y x = x ≡ fold f y
+        alg-crt : (x : A)
+          → ((y : A) → Σ[ t ∈ μ C ] P t y)
+          → Σ[ t ∈ μ C ] P t x
+        alg-crt x rec = 
+          let fa , qprf = step-crt x
+              ft = fmap (λ a → a , rec a) fa
+              eq = λ pos → proj₂ (proj₂ (proj₂ ft pos))
+          in fix (fmap (proj₁ ∘ proj₂) ft)
+          , trans qprf (cong f (×-≡ refl (ext-explicit eq)))
+
 bfold : ∀ {C : Container 0ℓ 0ℓ} {a : Set}
   → {q : a → a → Set}
   → ⦃ p : BFunctor C ⦄

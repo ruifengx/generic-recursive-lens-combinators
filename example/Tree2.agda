@@ -377,6 +377,26 @@ bmaxAlg = res , refl , refl where
       $ ⊔-lub {fin m} {fin x″} {k l′} fin-x″≤fin-m k-l′≤fin-m
     ... | no ¬E = ⊥-elim (¬E E)
 
+bmaximum : ⦅ μ-c ⦃ TP ⦄ ⦆ μ (TreeC ℤ) ↔ ℤω ⦅ _≈_ ⦆
+bmaximum = bfold bmaxAlg crt where
+  crtAlg : (x : ℤω) → Σ[ fy ∈ ⟦ TreeC ℤ ⟧ ℤω ] x ≡ get (proj₁ bmaxAlg) fy
+  crtAlg -∞      = Leaf , refl
+  crtAlg (fin x) = Branch x -∞ -∞ , refl
+  ≡⇒≈ : ∀ {x y : ℤω} → x ≡ y → x ≈ y
+  ≡⇒≈ { -∞}   { -∞}   refl = both-infinity
+  ≡⇒≈ {fin _} {fin _} refl = both-finite _ _
+  crt = makeCreate ≡⇒≈ (get (proj₁ bmaxAlg)) crtAlg
+
+zt : Tree ℤ
+zt =
+  branch′ (+ 3)
+    (branch′ (+ 1)
+      leaf′
+      (branch′ (+ 4)
+        leaf′
+        leaf′))
+    leaf′
+
 map2 : ∀ {a b : Set} → (a → b) → (a → b) → List a → List b
 map2 f-init f [] = []
 map2 f-init f (x ∷ xs) = f-init x ∷ List.map f xs
@@ -430,6 +450,17 @@ endl : ∀ {l : Level} → IO {l} Poly.⊤
 endl = putStrLn ""
 
 main = run {0ℓ} do
-  ppTree t; endl
+  putStrLn "[ inits , tails ]"
+  putStrLn "original:"; ppTree t; endl
+  putStrLn "(unidirectional) inits:"
   ppLTree (inits {TreeC _} t); endl
+  putStrLn "(unidirectional) tails:"
   ppLTree (tails {TreeC _} t); endl
+
+  putStrLn "[ bmaximum ]"
+  putStrLn "original:"; ppTree zt; endl
+  putStr "get bmaximum: "; print (get (proj₁ bmaximum) zt); endl
+  putStrLn "put bmaximum 2:"
+  ppTree (put (proj₁ bmaximum) (fin (+ 2)) zt {both-finite _ _}); endl
+  putStrLn "put bmaximum 7:"
+  ppTree (put (proj₁ bmaximum) (fin (+ 7)) zt {both-finite _ _}); endl
