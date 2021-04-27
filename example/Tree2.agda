@@ -395,7 +395,15 @@ zt =
       (branch′ (+ 4)
         leaf′
         leaf′))
-    leaf′
+    (branch′ (+ 5)
+      (branch′ (+ 13)
+        (branch′ +0
+          leaf′
+          leaf′)
+        leaf′)
+      (branch′ (+ 9)
+        leaf′
+        leaf′))
 
 map2 : ∀ {a b : Set} → (a → b) → (a → b) → List a → List b
 map2 f-init f [] = []
