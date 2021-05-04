@@ -57,6 +57,14 @@ ext₂ {m} {n} {l} {A} {B} {C} {f} {g} E
   → (a₁ , b₁) ≡ (a₂ , b₂)
 ×-≡ refl refl = refl
 
+×-≡′ : ∀ {a b : Level}
+  → {A : Set a} {B : A → Set b}
+  → {a₁ a₂ : A} {b₁ : B a₁} {b₂ : B a₂}
+  → (p : a₁ ≡ a₂)
+  → (q : subst B p b₁ ≡ b₂)
+  → (a₁ , b₁) ≡ (a₂ , b₂)
+×-≡′ refl refl = refl
+
 subst-Σ : ∀ {a b c : Level}
   → {A : Set a} {B : A → Set b}
   → (f : Σ A B → Set c)
