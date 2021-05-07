@@ -87,3 +87,6 @@ cong-Σ : ∀ {a b c : Level}
   → (p : a₁ ≡ a₂)
   → f (a₁ , b) ≡ f (a₂ , subst B p b)
 cong-Σ f refl = cong f refl
+
+case_of_ : ∀ {a b} {A : Set a} {B : Set b} → A → (A → B) → B
+case x of f = f x

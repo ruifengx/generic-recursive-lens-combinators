@@ -39,13 +39,63 @@ infix 2 Lens
 
 syntax Lens a b cs cv = ⦅ cs ⦆ a ↔ b ⦅ cv ⦆
 
+bid : ∀ {l c : Level} {A : Set l}
+  → {P : A → A → Set c}
+  → ⦅ P ⦆ A ↔ A ⦅ P ⦆
+bid .get = id
+bid .put-full y′ _ {prf} = y′ , prf
+bid .coherence = id
+bid .get-put = refl
+bid .put-get = refl
+
+infixr 9 _·_ _·′_
+
+_·_ : ∀ {l c : Level} {A B C : Set l}
+  → {P₂ : A → A → Set c}
+  → {Q₂ P₁ : B → B → Set c}
+  → {Q₁ : C → C → Set c}
+  → (f : ⦅ P₁ ⦆ B ↔ C ⦅ Q₁ ⦆)
+  → (g : ⦅ P₂ ⦆ A ↔ B ⦅ Q₂ ⦆)
+  → {∀ {y′ y} → P₁ y′ y → Q₂ y′ y}
+  → {∀ {y} → Q₂ y y → P₁ y y}
+    ------------------------------
+  → ⦅ P₂ ⦆ A ↔ C ⦅ Q₁ ⦆
+get (f · g) = get f ∘ get g
+put-full ((f · g) {imp}) z′ x {cv} =
+  let y′ , prf = put-full f z′ (get g x) {cv}
+  in put-full g y′ x {imp prf}
+coherence ((f · g) {_} {coh}) = coherence f ∘ coh ∘ coherence g
+get-put (f · g) {x} =
+  begin
+    put g (put f (get f (get g x)) (get g x)) x
+  ≡⟨ cong-Σ (put-Σ g x) (get-put f) ⟩
+    put g (get g x) x
+  ≡⟨ get-put g ⟩
+    x
+  ∎
+put-get (f · g) {x} {y} =
+  begin
+    get f (get g (put g (put f y (get g x)) x))
+  ≡⟨ cong (get f) (put-get g) ⟩
+    get f (put f y (get g x))
+  ≡⟨ put-get f ⟩
+    y
+  ∎
+
+_·′_ : ∀ {l c : Level} {A B C : Set l}
+  → {P₂ : A → A → Set c}
+  → {P₁ : B → B → Set c}
+  → {Q₁ : C → C → Set c}
+  → (f : ⦅ P₁ ⦆ B ↔ C ⦅ Q₁ ⦆)
+  → (g : ⦅ P₂ ⦆ A ↔ B ⦅ P₁ ⦆)
+    -----------------------
+  → ⦅ P₂ ⦆ A ↔ C ⦅ Q₁ ⦆
+f ·′ g = (f · g) {id} {id}
+
 open import Data.Maybe using (Maybe; nothing; just)
 open import Relation.Binary.PropositionalEquality using (inspect; [_])
 
 open FinList
-
-case_of_ : ∀ {a b} {A : Set a} {B : Set b} → A → (A → B) → B
-case x of f = f x
 
 record BFunctor {s p : Level} {n : ℕ} (C : NContainer s p n) : Set (lsuc (s ⊔ p)) where
   field
@@ -204,3 +254,45 @@ record BFunctor {s p : Level} {n : ℕ} (C : NContainer s p n) : Set (lsuc (s �
         in get (f k) (proj₁ (put-full (f k) y₀ x₀ {p})) ≡ proj₂ y k pos
     E k pos = trans (put-get (f k)) (helper k pos (map-pos (proj₁ y) (proj₁ x) pos) (cv′ k pos))
 
+open BFunctor ⦃...⦄ public
+
+ctrue : ∀ {n : ℕ} {s p} {A : Fin n → Set p} → (k : Fin n) → A k → A k → Set s
+ctrue _ _ _ = Lift _ ⊤
+
+open import Induction.WellFounded
+
+module BFold {s p : Level} {n : ℕ}
+    {AllowCreate : Set (s ⊔ p)}
+    {C : NContainer s (s ⊔ p) (suc n)}
+    ⦃ P : BFunctor C ⦄
+    {X : Fin n → Set (s ⊔ p)} where
+
+  private
+    lift-contract″ : ∀ {A B : Fin (suc n) → Set (s ⊔ p)}
+      → (∀ k → A k → B k → Set (s ⊔ p))
+      → ⟦ C ⟧ A → ⟦ C ⟧ B → Set (s ⊔ p)
+    lift-contract″ = lift-contract′ {AllowCreate = AllowCreate}
+
+  μ-contract : μ C X → μ C X → Set (s ⊔ p)
+  μ-contract = λ fx fy → go fx fy (subtree-wellfounded fx)
+    module MuContract where
+    go : (x : μ C X) → μ C X → Acc _is-subtree-of_ x → Set (s ⊔ p)
+    go x y (acc a) = lift-contract {AllowCreate = AllowCreate} (unfix x) (unfix y)
+      λ where fzero x y r → go x y (a x (subtree r))
+              (fsuc _) _ _ _ → Lift _ ⊤
+
+  μ-contract-fix : ∀ {x y : ⟦ C ⟧ (μ C X ∷ X)}
+    → μ-contract (fix x) (fix y) ≡ lift-contract″ (μ-contract ∷ ctrue) x y
+  μ-contract-fix {x} {y} with acc a ← subtree-wellfounded (fix x)
+    = cong (lift-contract x y) $ ext-explicit λ where
+    fzero → ext₂ λ x′ y′ → ext-explicit λ r →
+      cong (MuContract.go x′ y′) {a x′ (subtree r)}
+        {subtree-wellfounded x′} subtree-unique
+    (fsuc k) → ext₂ λ x′ y′ → refl
+
+  bunfix : ⦅ μ-contract ⦆ μ C X ↔ ⟦ C ⟧ (μ C X ∷ X) ⦅ lift-contract″ (μ-contract ∷ ctrue) ⦆
+  bunfix .get x = unfix x
+  bunfix .put-full fy (fix fx) {cv} = fix fy , subst id (sym μ-contract-fix) cv
+  bunfix .coherence {fix fx} cs = subst id μ-contract-fix cs
+  bunfix .get-put {fix fx} = refl
+  bunfix .put-get {fix _} {fy} = refl

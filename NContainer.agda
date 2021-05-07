@@ -151,7 +151,7 @@ module _ {s p n} {C : NContainer s p n} {x} {X : Fin n → Set x} where
 
   infix 4 _∈_
   _∈_ : ∀ {k} → X k → Pred (⟦ C ⟧ X) (p ⊔ x)
-  _∈_ {k} x xs = ◇ C ((λ _ _ → Lift _ ⊤) [ k ⇒ x ≡_ ]) xs
+  _∈_ {k} x xs = ◇ C ((λ _ _ → Lift _ ⊥) [ k ⇒ x ≡_ ]) xs
 
 -- The extension is a functor
 
@@ -159,6 +159,18 @@ map : ∀ {s p n x y} {C : NContainer s p n}
   → {X : Fin n → Set x} {Y : Fin n → Set y}
   → ((k : Fin n) → X k → Y k) → ⟦ C ⟧ X → ⟦ C ⟧ Y
 map f = Prod.map₂ λ orig k → f k ∘ orig k
+
+map₀ : ∀ {s p n x} {C : NContainer s p (suc n)} {A B : Set x}
+  → (A → B) → {X : Fin n → Set x}
+  → ⟦ C ⟧ (A ∷ X) → ⟦ C ⟧ (B ∷ X)
+map₀ f = map λ where fzero → f; (fsuc _) → id
+
+map₀-composition : ∀ {s p n x} {C : NContainer s p (suc n)} {A₁ A₂ A₃ : Set x}
+  → {f : A₂ → A₃} → {g : A₁ → A₂}
+  → {X : Fin n → Set x}
+  → map₀ {C = C} f {X} ∘ map₀ g ≡ map₀ (f ∘ g)
+map₀-composition = ext-explicit λ x → ×-≡ refl
+  (ext₂ λ{ fzero p → refl; (fsuc _) p → refl })
 
 data μ {s p n} (C : NContainer s p (suc n))
     (A : Fin n → Set (s ⊔ p)) : Set (s ⊔ p) where
@@ -177,3 +189,110 @@ module _ {s p n} {C : NContainer s p (suc n)} {A : Fin n → Set (s ⊔ p)}
 
   fold : μ C A → P
   fold = induction (const P) (alg ∘ (λ y → _ , λ{ k@fzero → y k; k@(fsuc _) → y k }) ∘ □.proof)
+
+unfix : ∀ {s p n} {C : NContainer s p (suc n)} {A : Fin n → Set (s ⊔ p)} → μ C A → ⟦ C ⟧ (μ C A ∷ A)
+unfix (fix x) = x
+
+module FoldProperties {s p n}
+    {C : NContainer s p (suc n)}
+    {A : Fin n → Set (s ⊔ p)} where
+
+  fold-univ-rev : ∀ {B : Set (s ⊔ p)}
+    → {f : ⟦ C ⟧ (B ∷ A) → B}
+    → f ∘ map₀ (fold f) ≡ fold f ∘ fix
+  fold-univ-rev {f = f} = ext-explicit λ _ →
+    cong f (×-≡ refl (ext₂ λ{ fzero p → refl; (fsuc _) p → refl }))
+
+  fold-universal : ∀ {B : Set (s ⊔ p)}
+    → {f : ⟦ C ⟧ (B ∷ A) → B}
+    → {h : μ C A → B}
+    → f ∘ map₀ h ≡ h ∘ fix
+      ----------------------
+    → h ≡ fold f
+  fold-universal {B} {f} {h} E = ext-explicit λ x → induction P alg x where
+    P = λ x → h x ≡ fold f x
+    alg : {t : ⟦ C ⟧ (μ C A ∷ A)} → □ C (P ∷ const ∘ A) t → h (fix t) ≡ fold f (fix t)
+    alg {t} (all all-P-t) =
+      begin
+        h (fix t)
+      ≡⟨ cong (_$ t) (sym E) ⟩
+        f (map₀ h t)
+      ≡⟨ cong (f ∘ (proj₁ t ,_)) (ext₂ λ{ fzero p → refl; k@(fsuc _) p → refl }) ⟩
+        f (proj₁ t , λ{ fzero p → h (proj₂ t fzero p); k@(fsuc _) p → proj₂ t k p })
+      ≡⟨ cong (f ∘ (proj₁ t ,_)) (ext₂ λ{ fzero x → all-P-t fzero x; k@(fsuc _) x → refl }) ⟩
+        f (proj₁ t , λ{ fzero p → fold f (proj₂ t fzero p); k@(fsuc _) p → proj₂ t k p })
+      ≡⟨ cong (f ∘ (proj₁ t ,_)) (ext₂ λ{ fzero p → refl; k@(fsuc _) p → refl }) ⟩
+        f (map₀ (fold f) t)
+      ≡⟨ cong (f ∘ (proj₁ t ,_)) (ext₂ λ{ fzero p → refl; k@(fsuc _) p → refl }) ⟩
+        fold f (fix t)
+      ∎
+
+  fold-fusion : ∀ {B₁ B₂ : Set (s ⊔ p)}
+    → {f : ⟦ C ⟧ (B₁ ∷ A) → B₁}
+    → {g : ⟦ C ⟧ (B₂ ∷ A) → B₂}
+    → {h : B₁ → B₂}
+    → h ∘ f ≡ g ∘ map₀ h
+    → h ∘ fold f ≡ fold g
+  fold-fusion {B₁} {B₂} {f} {g} {h} E =
+    fold-universal {f = g} $ begin
+      g ∘ map₀ (h ∘ fold f)
+    ≡⟨ cong (g ∘_) (sym (map₀-composition {f = h} {g = fold f})) ⟩
+      g ∘ map₀ h ∘ map₀ (fold f)
+    ≡⟨ cong (_∘ map₀ (fold f)) (sym E) ⟩
+      h ∘ f ∘ map₀ (fold f)
+    ≡⟨ cong (h ∘_) (fold-univ-rev {f = f}) ⟩
+      h ∘ fold f ∘ fix
+    ∎
+
+  fold-fix-id : fold {C = C} fix ≡ id
+  fold-fix-id = sym (fold-universal {f = fix} E) where
+    E = ext-explicit λ _ → cong fix
+      (×-≡ refl (ext₂ λ{ fzero p → refl; (fsuc _) p → refl }))
+
+open FoldProperties public
+
+module SubTree {s p n} {C : NContainer s p (suc n)}
+    {A : Fin n → Set (s ⊔ p)} where
+
+  open import Induction.WellFounded
+
+  record _is-subtree-of_ (fx fy : μ C A) : Set (s ⊔ p) where
+    constructor subtree
+    field proof : _∈_ {k = fzero} fx (unfix fy)
+
+  open _is-subtree-of_
+
+  subtree-unique : ∀ {x : μ C A} {a b : Acc _is-subtree-of_ x} → a ≡ b
+  subtree-unique {x} = induction P alg x
+    where P = λ x → ∀ {a b : Acc _is-subtree-of_ x} → a ≡ b
+          alg : {t : ⟦ C ⟧ (μ C A ∷ A)} → □ C (P ∷ const ∘ A) t → P (fix t)
+          alg {t} (all all-P-t) {acc a} {acc b} = cong acc $ ext₂ λ where
+            t′ E@(subtree (any (fsuc _ , _ , lift ())))
+            t′ E@(subtree (any (fzero , pos , Et′))) →
+              let Eq = all-P-t fzero pos
+                  S = cong-Σ (λ (t′ , E) → a t′ E ≡ b t′ E) Et′
+              in subst id (sym S) Eq
+
+  subtree-wellfounded : WellFounded _is-subtree-of_
+  subtree-wellfounded x = subst (Acc _is-subtree-of_) x′≡x acc′ where
+    subtree-alg : ⟦ C ⟧ (∃ (Acc _is-subtree-of_) ∷ A) → ∃ (Acc _is-subtree-of_)
+    subtree-alg fx@(s , p) = fix (map (proj₁ ∷ λ _ → id) fx) , acc λ y r →
+      case r .proof .◇.proof of λ where
+        (fsuc _ , _ , lift ())
+        (fzero , pos , prf) → subst (Acc _is-subtree-of_) (sym prf) (proj₂ (p fzero pos))
+    x′acc = fold subtree-alg x
+    x′ = proj₁ x′acc
+    acc′ = proj₂ x′acc
+    x′≡x : x′ ≡ x
+    x′≡x =
+      begin
+        proj₁ (fold subtree-alg x)
+      ≡⟨ cong (_$ x) (fold-fusion {f = subtree-alg} {g = fix} {h = proj₁}
+          (ext-explicit λ x → cong fix (×-≡ refl
+          (ext₂ (λ{ fzero pos → refl; (fsuc _) pos → refl }))))) ⟩
+        fold fix x
+      ≡⟨ cong (_$ x) fold-fix-id ⟩
+        x
+      ∎
+
+open SubTree public
