@@ -1,3 +1,4 @@
+{-# OPTIONS --guardedness #-}
 module IntOmega where
 
 open import Level using (0ℓ)

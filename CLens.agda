@@ -1,3 +1,4 @@
+{-# OPTIONS --guardedness #-}
 module CLens where
 
 open import Utils

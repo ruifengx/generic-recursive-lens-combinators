@@ -1,3 +1,4 @@
+{-# OPTIONS --guardedness #-}
 module Fixpoint2 where
 
 open import Utils

@@ -1,3 +1,4 @@
+{-# OPTIONS --guardedness #-}
 module example.Tree where
 
 open import Utils

@@ -1,3 +1,4 @@
+{-# OPTIONS --guardedness #-}
 module Show where
 
 open import Utils

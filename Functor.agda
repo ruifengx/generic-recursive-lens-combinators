@@ -1,3 +1,4 @@
+{-# OPTIONS --guardedness #-}
 module Functor where
 
 open import Utils

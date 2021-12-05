@@ -1,3 +1,4 @@
+{-# OPTIONS --guardedness #-}
 module example.Tree2 where
 
 open import Fixpoint2
